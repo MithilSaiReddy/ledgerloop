@@ -1,0 +1,47 @@
+# ── Secrets & credentials — never commit these ─────────────────────────
+.env
+.env.*
+!.env.example
+.venv/
+*secret*
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.p8
+git-credentials
+.credentials.json
+token.json
+imp.txt
+.dockerignore-tmp
+
+# ── Python ─────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / Next.js ──────────────────────────────────────────────────────
+node_modules/
+.next/
+frontend/.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Data & generated artifacts ─────────────────────────────────────────
+backend/data/
+data/*.db*
+data/ledgerloop.db
+data/uploads/
+data/demo-samples/
+data/samples/
+
+# ── Logs / OS ──────────────────────────────────────────────────────────
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.next/
+frontend/.next/
+data/*.db*
+data/uploads/
+data/demo-samples/
+data/samples/
+imp.txt
+*.log
+.git/
+.agents/

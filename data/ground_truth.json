@@ -1,0 +1,485 @@
+[
+  {
+    "file": "clean_01_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0100",
+    "total": 23063.38
+  },
+  {
+    "file": "clean_02_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0102",
+    "total": 21018.85
+  },
+  {
+    "file": "clean_03_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0111",
+    "total": 14854.82
+  },
+  {
+    "file": "clean_04_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0116",
+    "total": 14207.04
+  },
+  {
+    "file": "clean_05_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0124",
+    "total": 12764.72
+  },
+  {
+    "file": "clean_06_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0130",
+    "total": 13816.54
+  },
+  {
+    "file": "clean_07_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0136",
+    "total": 9441.79
+  },
+  {
+    "file": "clean_08_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0142",
+    "total": 25335.22
+  },
+  {
+    "file": "clean_09_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0146",
+    "total": 14823.96
+  },
+  {
+    "file": "clean_10_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0147",
+    "total": 5504.47
+  },
+  {
+    "file": "clean_11_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0150",
+    "total": 17786.61
+  },
+  {
+    "file": "clean_12_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0157",
+    "total": 9964.04
+  },
+  {
+    "file": "clean_13_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0164",
+    "total": 9232.3
+  },
+  {
+    "file": "clean_14_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0170",
+    "total": 25407.68
+  },
+  {
+    "file": "clean_15_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0177",
+    "total": 13787.29
+  },
+  {
+    "file": "clean_16_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0184",
+    "total": 3407.18
+  },
+  {
+    "file": "clean_17_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0189",
+    "total": 10571.04
+  },
+  {
+    "file": "clean_18_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0191",
+    "total": 14504.84
+  },
+  {
+    "file": "clean_19_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0197",
+    "total": 11370.62
+  },
+  {
+    "file": "clean_20_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0203",
+    "total": 1406.4
+  },
+  {
+    "file": "clean_21_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0211",
+    "total": 3652.48
+  },
+  {
+    "file": "clean_22_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0216",
+    "total": 14188.04
+  },
+  {
+    "file": "clean_23_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0223",
+    "total": 4418.33
+  },
+  {
+    "file": "clean_24_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0232",
+    "total": 13966.16
+  },
+  {
+    "file": "clean_25_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0237",
+    "total": 22431.1
+  },
+  {
+    "file": "clean_26_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0245",
+    "total": 5923.23
+  },
+  {
+    "file": "clean_27_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0249",
+    "total": 1261.88
+  },
+  {
+    "file": "clean_28_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0253",
+    "total": 1046.98
+  },
+  {
+    "file": "clean_29_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0260",
+    "total": 13253.78
+  },
+  {
+    "file": "clean_30_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0268",
+    "total": 18064.27
+  },
+  {
+    "file": "clean_31_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0273",
+    "total": 26844.39
+  },
+  {
+    "file": "clean_32_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0281",
+    "total": 20853.27
+  },
+  {
+    "file": "clean_33_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0287",
+    "total": 11770.47
+  },
+  {
+    "file": "clean_34_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0293",
+    "total": 25184.61
+  },
+  {
+    "file": "clean_35_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0295",
+    "total": 24385.47
+  },
+  {
+    "file": "clean_36_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0302",
+    "total": 21432.37
+  },
+  {
+    "file": "clean_37_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0304",
+    "total": 12614.04
+  },
+  {
+    "file": "clean_38_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0305",
+    "total": 3026.18
+  },
+  {
+    "file": "clean_39_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0306",
+    "total": 3660.41
+  },
+  {
+    "file": "clean_40_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0314",
+    "total": 17913.32
+  },
+  {
+    "file": "clean_41_sharma.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0315",
+    "total": 9398.54
+  },
+  {
+    "file": "clean_42_gupta.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Gupta Electronics Pvt Ltd",
+    "invoice_no": "GE/2025/0320",
+    "total": 12720.0
+  },
+  {
+    "file": "clean_43_meena.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0322",
+    "total": 7406.57
+  },
+  {
+    "file": "clean_44_patel.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0330",
+    "total": 26783.87
+  },
+  {
+    "file": "clean_45_bangalore.txt",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0334",
+    "total": 22454.27
+  },
+  {
+    "file": "clean_46_sunrise.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0335",
+    "total": 27176.81
+  },
+  {
+    "file": "clean_47_chennai.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0343",
+    "total": 13213.23
+  },
+  {
+    "file": "clean_48_delhi.pdf",
+    "expected": "ledger",
+    "expected_reason": null,
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0347",
+    "total": 2727.03
+  },
+  {
+    "file": "messy_01_duplicate.txt",
+    "expected": "exception",
+    "expected_reason": "DUPLICATE",
+    "note": "duplicate of clean_01",
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0100",
+    "total": 23063.38
+  },
+  {
+    "file": "messy_02_duplicate.txt",
+    "expected": "exception",
+    "expected_reason": "DUPLICATE",
+    "note": "duplicate of clean_05",
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0124",
+    "total": 12764.72
+  },
+  {
+    "file": "messy_03_invalid_gstin.txt",
+    "expected": "exception",
+    "expected_reason": "INVALID_GSTIN",
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0355",
+    "total": 15399.4
+  },
+  {
+    "file": "messy_04_invalid_gstin.txt",
+    "expected": "exception",
+    "expected_reason": "INVALID_GSTIN",
+    "vendor": "Sunrise Pharma Distributors",
+    "invoice_no": "SP/2025/0358",
+    "total": 5277.91
+  },
+  {
+    "file": "messy_05_missing_gstin.txt",
+    "expected": "exception",
+    "expected_reason": "GSTIN_MISSING",
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0361",
+    "total": 14798.65
+  },
+  {
+    "file": "messy_06_missing_gstin.txt",
+    "expected": "exception",
+    "expected_reason": "GSTIN_MISSING",
+    "vendor": "Delhi Mobile Point",
+    "invoice_no": "DM/2025/0363",
+    "total": 6449.4
+  },
+  {
+    "file": "messy_07_tax_mismatch.txt",
+    "expected": "exception",
+    "expected_reason": "TAX_MISMATCH",
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": "BS/2025/0365",
+    "total": 2259.97
+  },
+  {
+    "file": "messy_08_tax_mismatch.txt",
+    "expected": "exception",
+    "expected_reason": "TAX_MISMATCH",
+    "vendor": "Sharma Kirana Stores",
+    "invoice_no": "SK/2025/0369",
+    "total": 26979.21
+  },
+  {
+    "file": "messy_09_tax_mismatch.txt",
+    "expected": "exception",
+    "expected_reason": "TAX_MISMATCH",
+    "vendor": "Chennai Food Court Supplies",
+    "invoice_no": "CF/2025/0373",
+    "total": 20296.82
+  },
+  {
+    "file": "messy_10_bad_date.txt",
+    "expected": "exception",
+    "expected_reason": "BAD_DATE",
+    "vendor": "Patel Hardware Mart",
+    "invoice_no": "PH/2025/0377",
+    "total": 6852.93
+  },
+  {
+    "file": "messy_11_missing_invoice_no.txt",
+    "expected": "exception",
+    "expected_reason": "EXTRACTION_INCOMPLETE",
+    "vendor": "Bangalore Stationery House",
+    "invoice_no": null,
+    "total": 2898.33
+  },
+  {
+    "file": "messy_12_near_duplicate.txt",
+    "expected": "exception",
+    "expected_reason": "DUPLICATE",
+    "note": "same vendor+invoice_no as clean_11, different amount",
+    "vendor": "Meena Fabrics & Tailors",
+    "invoice_no": "MF/2025/0150",
+    "total": 35573.22
+  }
+]

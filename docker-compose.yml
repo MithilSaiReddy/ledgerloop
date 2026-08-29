@@ -1,0 +1,66 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: ledgerloop-backend
+    env_file: .env
+    environment:
+      - UPLOAD_DIR=/data/uploads
+      - DEMO_SAMPLES_DIR=/data/demo-samples
+      - FRONTEND_ORIGIN=http://localhost:3000
+    volumes:
+      - ledgerloop-uploads:/data
+      - ./data/samples:/app/data/samples:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      # Demo mode: if no real Supabase keys are provided the UI runs fully
+      # offline against the backend's local SQLite demo.
+    container_name: ledgerloop-frontend
+    env_file: .env
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      # Demo auto-disables when real SUPABASE keys are set; leave DEMO_MODE
+      # empty to defer to auto-detection.
+      - NEXT_PUBLIC_DEMO_MODE=${DEMO_MODE:-}
+      # NEXT_PUBLIC_* must be present at build time too; docker-compose does a
+      # runtime override here for dev parity. Rebuild after changing them.
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  hermes:
+    build: ./hermes
+    container_name: ledgerloop-hermes
+    env_file: .env
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - FRONTEND_ORIGIN=http://localhost:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Runs the Telegram ingestion worker when TELEGRAM_BOT_TOKEN is set;
+    # otherwise just keeps the tool files/env available (Hermes on the host
+    # execs mcp_server.py directly via `hermes mcp add`).
+    command: >
+      sh -c "if [ -n \"$${TELEGRAM_BOT_TOKEN}\" ]; then python telegram_bot.py;
+      else echo 'ledgerloop hermes sidecar idle (no TELEGRAM_BOT_TOKEN)'; sleep infinity; fi"
+
+volumes:
+  ledgerloop-uploads:
