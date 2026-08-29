@@ -1,5 +1,7 @@
 from functools import lru_cache
+from typing import Self
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,9 +20,6 @@ class Settings(BaseSettings):
     demo_owner_id: str = "demo-owner"
     seed_demo: bool = True
     demo_samples_dir: str = "data/demo-samples"
-
-    # Supabase (Postgres + Auth). If supabase_db_url is empty we fall back to
-    # local SQLite so tests and offline dev still work.
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
@@ -40,6 +39,17 @@ class Settings(BaseSettings):
 
     ca_email_default: str = ""
     email_dry_run: bool = True
+
+    # Treat an empty env value (e.g. `DEMO_MODE=` left blank in .env.example)
+    # as "not set", i.e. fall back to the field default. Without this, pydantic
+    # raises a bool-parsing error on an empty string and a fresh clone that
+    # copied .env.example verbatim would fail to boot.
+    @field_validator("demo_mode", "seed_demo", "email_dry_run", mode="before")
+    @classmethod
+    def _empty_bool_means_default(cls, v):
+        if v == "" or v is None:
+            return True  # all three fields default to True
+        return v
 
     @property
     def is_postgres(self) -> bool:
