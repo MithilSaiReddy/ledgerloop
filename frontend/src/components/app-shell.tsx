@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <UserMenu />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-6">{children}</main>
+          <main className="mx-auto flex min-w-0 w-full max-w-6xl flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-6">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </div>

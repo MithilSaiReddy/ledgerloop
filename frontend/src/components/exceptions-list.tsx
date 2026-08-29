@@ -102,7 +102,7 @@ export function ExceptionsList({ items }: { items: ExceptionItem[] }) {
                     </div>
                     <p className="text-sm text-foreground">{item.detail || reasonLabel(item.reason)}</p>
                     {item.extracted && (
-                      <p className="truncate font-mono text-xs text-muted-foreground">
+                      <p className="max-w-full truncate font-mono text-[11px] text-muted-foreground">
                         {JSON.stringify(item.extracted)}
                       </p>
                     )}

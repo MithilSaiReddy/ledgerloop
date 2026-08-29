@@ -139,6 +139,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Never let any page scroll sideways — wide content (tables, pre) scrolls
+     inside its own overflow container instead of pushing the viewport. */
+  html,
+  body {
+    overflow-x: clip;
+  }
   body {
     @apply bg-background text-foreground;
   }

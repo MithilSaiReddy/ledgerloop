@@ -27,20 +27,20 @@ interface Column {
   numeric?: boolean;
   /** Extra width/truncation classes so the wide grid fits without overflow. */
   wrap?: string;
+  /** Hidden below a breakpoint — mobile shows only the columns that matter. */
+  hide?: string;
 }
 
 const COLUMNS: Column[] = [
   { key: "date", label: "Date", align: "left" },
-  { key: "vendor", label: "Vendor", align: "left", wrap: "max-w-[150px] truncate" },
+  { key: "vendor", label: "Vendor", align: "left", wrap: "max-w-[160px] truncate" },
   { key: "invoice_no", label: "Invoice #", align: "left" },
-  { key: "gstin", label: "GSTIN", align: "left" },
-  { key: "hsn_code", label: "HSN", align: "left" },
-  { key: "place_of_supply", label: "Place of Supply", align: "left", wrap: "max-w-[130px] truncate" },
-  { key: "category", label: "Category", align: "left", wrap: "max-w-[120px] truncate" },
+  { key: "gstin", label: "GSTIN", align: "left", hide: "hidden lg:table-cell" },
+  { key: "category", label: "Category", align: "left", wrap: "max-w-[110px] truncate", hide: "hidden md:table-cell" },
   { key: "taxable_value", label: "Taxable ₹", align: "right", numeric: true },
-  { key: "cgst", label: "CGST", align: "right", numeric: true },
-  { key: "sgst", label: "SGST", align: "right", numeric: true },
-  { key: "igst", label: "IGST", align: "right", numeric: true },
+  { key: "cgst", label: "CGST", align: "right", numeric: true, hide: "hidden sm:table-cell" },
+  { key: "sgst", label: "SGST", align: "right", numeric: true, hide: "hidden sm:table-cell" },
+  { key: "igst", label: "IGST", align: "right", numeric: true, hide: "hidden sm:table-cell" },
   { key: "total", label: "Total ₹", align: "right", numeric: true },
 ];
 
@@ -202,7 +202,10 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
               <TableRow>
                 <TableHead>Type</TableHead>
                 {COLUMNS.map((c) => (
-                  <TableHead key={c.key} className={cn("whitespace-nowrap", c.align === "right" && "text-right")}>
+                  <TableHead
+                    key={c.key}
+                    className={cn("whitespace-nowrap", c.align === "right" && "text-right", c.hide)}
+                  >
                     {c.label}
                   </TableHead>
                 ))}
@@ -227,6 +230,7 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
                         className={cn(
                           "max-w-[220px] whitespace-nowrap",
                           c.wrap,
+                          c.hide,
                           numeric && "text-right tabular-nums",
                           !isEditing && "cursor-text hover:bg-accent/40 focus-within:bg-accent/40",
                         )}
