@@ -63,8 +63,7 @@ export default async function LedgerPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Ledger — {month}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every bill filed for this month. Click Edit to fix a misread field;
-            edits are logged in your audit trail.
+            Click any cell to edit it inline — every change is logged in your audit trail.
           </p>
         </div>
         <MonthNav path="/ledger" months={monthOptions} value={month} extra={{ type }} />
@@ -94,7 +93,7 @@ export default async function LedgerPage({
         </Alert>
       ) : (
         <>
-          <LedgerTable entries={entries} />
+          <LedgerTable key={`${month}:${type}`} entries={entries} />
           <p className="text-sm text-muted-foreground">
             Flagged invoices live in{" "}
             <Link href={`/exceptions?month=${month}`} className="font-medium text-primary hover:underline">

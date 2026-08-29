@@ -12,7 +12,8 @@ from app.models import AuditLog, ExceptionRow, Invoice, LedgerEntry
 router = APIRouter(prefix="/ledger", tags=["ledger"])
 
 EDITABLE_FIELDS = {"vendor", "gstin", "invoice_no", "date", "taxable_value",
-                   "cgst", "sgst", "igst", "total", "category"}
+                   "cgst", "sgst", "igst", "total", "category",
+                   "hsn_code", "place_of_supply"}
 
 
 class LedgerEdit(BaseModel):
