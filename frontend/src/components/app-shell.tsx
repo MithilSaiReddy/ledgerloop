@@ -162,7 +162,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full overflow-x-clip bg-background">
       <SidebarProvider>
         <Sidebar collapsible="icon">
           <SidebarHeader className="p-2 group-data-[collapsible=icon]:p-0">
@@ -238,7 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <UserMenu />
             </div>
           </header>
-          <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">{children}</main>
+          <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-6">{children}</main>
         </SidebarInset>
       </SidebarProvider>
     </div>
