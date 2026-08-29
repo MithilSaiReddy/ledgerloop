@@ -18,7 +18,7 @@ lets the shopkeeper/CA fix misread fields first, and every edit is audited.
 | API | FastAPI + SQLAlchemy + Supabase Postgres (row-level security per owner) |
 | Parsing | MarkItDown (PDFs/docs) with pytesseract fallback for scanned photos |
 | Structuring | Mistral API (OpenAI-compatible; Llama 3.3 on Groq works too — `LLM_*` env vars) |
-| Agent | Nous Research **Hermes Agent** via a zero-dependency MCP server |
+| Telegram | Standalone `python-telegram-bot` worker: forward invoices to a bot → POSTed to the backend API |
 | Email | Gmail API with the owner's own OAuth token (no shared SMTP account), `EMAIL_DRY_RUN` guard |
 
 ## Reconciliation rules
@@ -87,17 +87,17 @@ upload invoices or forward them to your Telegram bot.
 
 ### Telegram
 
-The Hermes integration is installed & registered:
+Send invoices straight to a Telegram bot — no agent needed. A standalone worker
+(`telegram/bot.py`) polls Telegram and POSTs each photo/PDF to the backend's
+`/invoices/ingest`, then replies with the status. All parsing, structuring and
+reconciliation happens in the backend.
 
 ```bash
-hermes mcp list            # shows 'ledgerloop' MCP server, 3 tools enabled
-hermes chat                # agent can ingest invoices, notify exceptions, trigger month-end
+# docker `telegram` service runs automatically when TELEGRAM_BOT_TOKEN is set
+TELEGRAM_BOT_TOKEN=<your-bot-token> docker compose up --build
 ```
 
-Tools: `ingest_invoice` · `notify_exception` (Telegram alert with a deep link
-to the review queue; successes stay silent) · `trigger_month_end`.
-
-Fallback bot (works without Hermes): see `hermes/telegram_bot.py`.
+Commands the bot understands: `/start`, `/chatid`, `/monthend YYYY-MM`.
 
 ## Dataset & evaluation
 
@@ -125,7 +125,7 @@ every mismatch. Nothing is cherry-picked.
 backend/    FastAPI app, pipeline (convert→structure→reconcile), models, tests
             supabase/migrations/001_init.sql — schema + row-level security
 frontend/   Next.js 16 dashboard: Google login (or demo mode), /upload /ledger /exceptions /audit /send
-hermes/     MCP server + tool schemas + Telegram fallback worker
+telegram/   standalone Telegram ingestion worker (bot.py + Dockerfile)
 data/       invoice generator, synthetic samples (generated on the fly), ground truth labels
 eval/       evaluation harness CLI
 ```

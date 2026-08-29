@@ -45,9 +45,9 @@ services:
       backend:
         condition: service_healthy
 
-  hermes:
-    build: ./hermes
-    container_name: ledgerloop-hermes
+  telegram:
+    build: ./telegram
+    container_name: ledgerloop-telegram
     env_file: .env
     environment:
       - BACKEND_URL=http://backend:8000
@@ -55,12 +55,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    # Runs the Telegram ingestion worker when TELEGRAM_BOT_TOKEN is set;
-    # otherwise just keeps the tool files/env available (Hermes on the host
-    # execs mcp_server.py directly via `hermes mcp add`).
+    # Standalone Telegram ingestion worker (no agent needed). Only runs when
+    # TELEGRAM_BOT_TOKEN is set; otherwise it just idles.
     command: >
-      sh -c "if [ -n \"$${TELEGRAM_BOT_TOKEN}\" ]; then python telegram_bot.py;
-      else echo 'ledgerloop hermes sidecar idle (no TELEGRAM_BOT_TOKEN)'; sleep infinity; fi"
+      sh -c "if [ -n \"$${TELEGRAM_BOT_TOKEN}\" ]; then python bot.py;
+      else echo 'ledgerloop telegram worker idle (no TELEGRAM_BOT_TOKEN)'; sleep infinity; fi"
 
 volumes:
   ledgerloop-uploads:

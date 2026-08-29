@@ -1,13 +1,11 @@
-"""Fallback Telegram ingestion worker.
+"""Telegram ingestion worker.
 
-This is the guaranteed-working path for the demo: any photo/document sent to
-the bot is POSTed to /invoices/ingest and the bot echoes the backend's
-one-line status. It deliberately does NOT need Hermes to be running.
+Any photo/document sent to the bot is POSTed to /invoices/ingest and the bot
+echoes the backend's one-line status. Runs standalone — no agent required;
+all invoice parsing/structuring/reconciliation happens in the FastAPI backend.
 
-If you run a self-hosted Hermes instance, use adapter_config/ to register
-hermes/tools.py as custom tools instead — same endpoints, agent-driven flow.
-
-Run:  TELEGRAM_BOT_TOKEN=... BACKEND_URL=http://localhost:8000 python telegram_bot.py
+Docker:  TELEGRAM_BOT_TOKEN=... docker compose up telegram
+Local:   TELEGRAM_BOT_TOKEN=... BACKEND_URL=http://localhost:8000 python bot.py
 """
 
 import logging
