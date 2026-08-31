@@ -293,38 +293,6 @@ async def audit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines[:22]))
 
 
-def _button_safe_origin() -> bool:
-    """Whether FRONTEND_ORIGIN can be used for inline-keyboard URL buttons.
-
-    Telegram validates inline-button URLs server-side and only accepts public,
-    reachable HTTPS URLs — plain http and localhost are rejected. In a local
-    demo we therefore fall back to a plain-text clickable link, which the
-    user's own Telegram client can open (including on localhost).
-    """
-    origin = FRONTEND_ORIGIN
-    if not origin.startswith("https://"):
-        return False
-    host = origin.split("://", 1)[1].split("/", 1)[0].lower()
-    banned = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]")
-    return not host.startswith(banned)
-
-
-def _dashboard_link_line(path: str) -> str:
-    return f"Dashboard: {FRONTEND_ORIGIN}{path}"
-
-
-async def _reply_dashboard(update_or_message, text: str, path: str) -> None:
-    """Reply with text, adding an inline button when safe, else a plain link line."""
-    reply_kwargs = {}
-    if _button_safe_origin():
-        reply_kwargs["reply_markup"] = InlineKeyboardMarkup([[
-            InlineKeyboardButton("Open in dashboard", url=f"{FRONTEND_ORIGIN}{path}")
-        ]])
-    else:
-        text = f"{text}\n{_dashboard_link_line(path)}"
-    await update_or_message.reply_text(text, **reply_kwargs)
-
-
 async def ledger(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_user.id)
     month = context.args[0] if context.args else None
@@ -348,9 +316,7 @@ async def ledger(update: Update, context: ContextTypes.DEFAULT_TYPE):
     d = resp.json()
     month = d["month"]
     if d["count"] == 0:
-        await _reply_dashboard(
-            update.message, f"📒 {month}: no bills recorded.", f"/ledger?month={month}"
-        )
+        await update.message.reply_text(f"📒 {month}: no bills recorded.")
         return
     s = d
     lines = [
@@ -363,7 +329,7 @@ async def ledger(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     if s["open_exceptions"]:
         lines.append(f"⚠️ {s['open_exceptions']} open exception(s)")
-    await _reply_dashboard(update.message, "\n".join(lines), f"/ledger?month={month}")
+    await update.message.reply_text("\n".join(lines))
 
 
 async def _perform_month_end_send(chat_id: str, month: str, message) -> None:
@@ -387,11 +353,10 @@ async def _perform_month_end_send(chat_id: str, month: str, message) -> None:
         data = resp.json()
         s = data["bundle"]["summary"]
         mode = "sent ✉️" if not data.get("dry_run") else "prepared (dry-run, not emailed)"
-        text = (
+        await message.reply_text(
             f"📧 Month-end {month} {mode}: {s['count']} invoices, "
             f"₹{s['grand_total']:,.0f}, {s['open_exceptions']} open exceptions."
         )
-        await _reply_dashboard(message, text, f"/send?month={month}")
     except Exception:
         await message.reply_text(f"❌ Month-end failed ({resp.status_code})")
 
