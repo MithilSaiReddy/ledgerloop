@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import SessionLocal, utcnow
 from app.models import AuditLog, ExceptionRow, Invoice, LedgerEntry, UserSettings
-from app.pipeline.convert import markitdown_convert
+from app.pipeline.convert import IMAGE_EXTS, markitdown_convert, ocr_image_convert
 from app.pipeline.reconcile import parse_date, reconcile
 from app.pipeline.structure import StructureError, demo_structure, llm_structure
 
@@ -36,6 +36,7 @@ class PipelineResult:
         vendor: str = "",
         total: float | None = None,
         month: str = "",
+        extracted: dict | None = None,
     ):
         self.invoice_id = invoice_id
         self.status = status  # 'ledger' | 'exception' | 'failed'
@@ -47,6 +48,7 @@ class PipelineResult:
         self.vendor = vendor
         self.total = total
         self.month = month
+        self.extracted = extracted
 
     def ledger_row(self) -> dict | None:
         """Serialized ledger entry if this invoice was auto-matched."""
@@ -78,13 +80,22 @@ def _existing_pairs(db: Session, owner_id: str) -> set[tuple[str, str]]:
 
 
 def _owner_gst_context(db: Session, owner_id: str) -> dict:
-    """The shop's GST profile so reconcile can decide intra- vs inter-state."""
+    """The shop's GST profile so reconcile can decide intra- vs inter-state
+    tax treatment and apply owner-specific auto-derive GST rates."""
     row = db.get(UserSettings, owner_id)
     if row is None:
         return {}
+    tax_rates: dict | None = None
+    if row.tax_rates:
+        try:
+            parsed = json.loads(row.tax_rates)
+            tax_rates = parsed if isinstance(parsed, dict) else None
+        except (TypeError, ValueError):
+            tax_rates = None
     return {
         "state_code": row.state_code,
         "gst_registered": row.gst_registered,
+        "tax_rates": tax_rates,
     }
 
 
@@ -104,9 +115,22 @@ def run_pipeline(
     db.add(invoice)
     db.commit()
 
-    # 1. Convert to Markdown text.
+    # 1. Convert to Markdown text. Photos prefer the vision-backed Mistral OCR
+    #    (much more accurate on real phone shots than tesseract); fall back to
+    #    the offline path when the API is unavailable or no key is set.
     try:
-        text, converter = markitdown_convert(file_path)
+        if file_path.suffix.lower() in IMAGE_EXTS and settings.llm_api_key:
+            try:
+                text = ocr_image_convert(
+                    file_path, settings.llm_api_key,
+                    base_url=settings.llm_base_url, model=settings.ocr_model,
+                )
+                converter = "mistral-ocr"
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("mistral OCR failed on %s: %s; falling back", filename, exc)
+                text, converter = markitdown_convert(file_path)
+        else:
+            text, converter = markitdown_convert(file_path)
     except Exception as exc:  # noqa: BLE001
         logger.error("convert failed for %s: %s", filename, exc)
         return _failure(db, invoice, "CONVERSION_FAILED",
@@ -151,6 +175,7 @@ def run_pipeline(
     row, reason, detail = reconcile(extracted, _existing_pairs(db, owner_id), owner=owner)
 
     if row is not None:
+        row = {**row, "items": json.dumps(row.get("items") or [], ensure_ascii=False)}
         entry = LedgerEntry(invoice_id=invoice.id, owner_id=owner_id, **row)
         db.add(entry)
         invoice.status = "ledger"
@@ -166,6 +191,7 @@ def run_pipeline(
             ledger_id=entry.id,
             vendor=row["vendor"], total=row["total"],
             month=(parse_date(row["date"]) or "")[:7],
+            extracted=extracted,
         )
 
     parsed_date = parse_date(extracted.get("date"))
@@ -190,6 +216,7 @@ def run_pipeline(
         reason=reason, detail=detail, exception_id=exc_row.id,
         vendor=str(extracted.get("vendor") or ""),
         month=parsed_date[:7] if parsed_date else "",
+        extracted=extracted,
     )
 
 

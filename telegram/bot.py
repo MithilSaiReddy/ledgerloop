@@ -10,10 +10,12 @@ Local:   TELEGRAM_BOT_TOKEN=... BACKEND_URL=http://localhost:8000 python bot.py
 
 import logging
 import os
+from pathlib import Path
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -34,6 +36,8 @@ FRIENDLY_REASONS = {
     "INVALID_GSTIN": "the GSTIN on this invoice doesn't appear to be valid",
     "GSTIN_MISSING": "the GSTIN is missing from this invoice",
     "TAX_MISMATCH": "the tax amounts don't add up",
+    "TAX_TREATMENT_MISMATCH": "the tax split doesn't match whether it's intra- or inter-state",
+    "HSN_MISSING": "the HSN/SAC code is missing and is needed for GST filing",
     "EXTRACTION_INCOMPLETE": "we couldn't read all the key fields",
     "BAD_DATE": "the invoice date is unreadable",
     "CONVERSION_FAILED": "we couldn't read this file",
@@ -46,27 +50,91 @@ def friendly_reason(reason: str) -> str:
     return FRIENDLY_REASONS.get(reason, (reason or "it needs review").lower().replace("_", " "))
 
 
-def reply_for(result: dict) -> str:
+def _fmt_money(v) -> str:
+    if v is None:
+        return "—"
+    try:
+        return f"₹{float(v):,.2f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
+def _detail_lines(result: dict) -> str:
+    """Human-readable summary of what the extractor read, so the shopkeeper
+    can see at a glance whether the details came out right."""
+    ex = result.get("extracted") or {}
+    entry = result.get("entry") or ex
+
+    vendor = entry.get("vendor") or result.get("vendor") or ex.get("vendor")
+    lines = []
+    if vendor:
+        lines.append(f"Vendor: {vendor}")
+    inv = entry.get("invoice_no") or ex.get("invoice_no")
+    if inv:
+        lines.append(f"Invoice #: {inv}")
+    date = entry.get("date") or ex.get("date")
+    if date:
+        lines.append(f"Date: {date}")
+    total = _fmt_money(entry.get("total") if entry.get("total") is not None else ex.get("total"))
+    lines.append(f"Amount: {total}")
+    gstin = entry.get("gstin") or ex.get("gstin")
+    if gstin:
+        lines.append(f"GSTIN: {gstin}")
+    typ = entry.get("type") or ex.get("type")
+    if typ in ("purchase", "sale"):
+        lines.append(f"Type: {'sale (money in)' if typ == 'sale' else 'purchase (money out)'}")
+    cgst = entry.get("cgst") if entry.get("cgst") is not None else ex.get("cgst")
+    sgst = entry.get("sgst") if entry.get("sgst") is not None else ex.get("sgst")
+    igst = entry.get("igst") if entry.get("igst") is not None else ex.get("igst")
+    if any(v not in (None, 0, 0.0) for v in (cgst, sgst, igst)):
+        lines.append(f"CGST {_fmt_money(cgst)} · SGST {_fmt_money(sgst)} · IGST {_fmt_money(igst)}")
+    tax_note = entry.get("tax_note") or ex.get("tax_note")
+    if tax_note:
+        lines.append(f"Tax: {tax_note}")
+    items = entry.get("items") or ex.get("items") or []
+    if isinstance(items, list) and items:
+        lines.append(f"Line items: {len(items)}")
+    return "\n".join(lines) if lines else ""
+
+
+def reply_for(result: dict) -> tuple[str, InlineKeyboardMarkup | None]:
     """Status-based reply: silent-success style confirm for ledger entries,
-    a notification with deep link for exceptions, an error for failures."""
+    a notification with inline review buttons for exceptions, an error for
+    failures. Returns (text, optional inline keyboard)."""
     status = result.get("status")
+    details = _detail_lines(result)
     if status == "ledger":
         vendor = result.get("vendor") or "vendor"
         total = result.get("total")
         amount = f"₹{total:,.0f} " if total is not None else ""
-        return f"✅ Got it — {amount}from {vendor}"
+        head = f"✅ Got it — {amount}from {vendor}"
+        text = f"{head}\n\n{details}" if details else head
+        return text, None
     if status == "exception":
         reason = result.get("reason", "")
         month = result.get("month", "")
         link = f"{FRONTEND_ORIGIN}/exceptions" + (f"?month={month}" if month else "")
-        return (
+        text = (
             f"⚠️ Invoice needs attention\n\n"
             f"{friendly_reason(reason)}.\n"
-            f"File: {result.get('filename', 'invoice')}\n\n"
-            f"👉 Review it: {link}"
+            f"File: {result.get('filename', 'invoice')}\n"
+            f"{details}\n\n"
+            f"👉 Review on web: {link}"
         )
+        exc_id = result.get("exception_id")
+        if exc_id:
+            row = [
+                InlineKeyboardButton("👁 View", callback_data=f"exc:{exc_id}:view"),
+            ]
+            row2 = [
+                InlineKeyboardButton("✅ Approve", callback_data=f"exc:{exc_id}:approve"),
+                InlineKeyboardButton("❌ Dismiss", callback_data=f"exc:{exc_id}:dismiss"),
+            ]
+            markup = InlineKeyboardMarkup([row, row2])
+            return text, markup
+        return text, None
     detail = result.get("detail") or result.get("message") or "Please try again."
-    return f"❌ Sorry, that didn't work.\n{detail}"
+    return f"❌ Sorry, that didn't work.\n{detail}", None
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,8 +143,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Namaste! Send me an invoice photo or PDF and I'll file it in your ledger.\n\n"
         f"Your chat ID is: {chat_id}\n"
         "Paste it into Settings on the dashboard so I know which ledger is yours.\n\n"
+        "Tip: send the bill as a File 📎 (not a compressed photo) — it reads more accurately.\n\n"
         "Commands:\n"
         "/chatid — show this chat ID again\n"
+        "/audit — see recent activity in your ledger\n"
         "/monthend YYYY-MM — email summary + exceptions to your CA"
     )
 
@@ -92,7 +162,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     tg_file = msg.document or msg.photo[-1]
     file = await context.bot.get_file(tg_file.file_id)
-    filename = getattr(msg.document, "file_name", None) or f"{tg_file.file_unique_id}.jpg"
+    raw_name = getattr(msg.document, "file_name", None) or f"{tg_file.file_unique_id}.jpg"
+    filename = Path(raw_name).name or "invoice.jpg"
 
     tmp_path = f"/tmp/opencode/{filename}"
     os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
@@ -115,11 +186,107 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Open the LedgerLoop dashboard → Settings → paste it under "
                 "'Telegram chat ID', then send me the invoice again."
             )
+            markup = None
         else:
-            reply = reply_for(result)
+            reply, markup = reply_for(result)
     except Exception:
         reply = f"❌ Backend error ({resp.status_code})"
-    await msg.reply_text(reply)
+        markup = None
+    await msg.reply_text(reply, reply_markup=markup)
+
+
+def _exception_view_text(exc: dict) -> str:
+    """Human-readable render of a full exception record (for the View button)."""
+    seen = exc.get("extracted") or {}
+    lines = [f"📄 Exception #{exc.get('id')}"]
+    lines.append(f"Reason: {friendly_reason(exc.get('reason', ''))}")
+    if exc.get("detail"):
+        lines.append(f"Detail: {exc['detail']}")
+    entry = seen
+    vendor = entry.get("vendor")
+    if vendor:
+        lines.append(f"\nVendor: {vendor}")
+    inv = entry.get("invoice_no")
+    if inv:
+        lines.append(f"Invoice #: {inv}")
+    date = entry.get("date")
+    if date:
+        lines.append(f"Date: {date}")
+    total = _fmt_money(entry.get("total"))
+    lines.append(f"Amount: {total}")
+    typ = entry.get("type")
+    if typ in ("purchase", "sale"):
+        lines.append(f"Type: {'sale (money in)' if typ == 'sale' else 'purchase (money out)'}")
+    items = entry.get("items") or []
+    if isinstance(items, list) and items:
+        lines.append(f"Line items: {len(items)}")
+        for it in items[:10]:
+            desc = str(it.get("description") or "—")
+            amount = _fmt_money(it.get("amount"))
+            lines.append(f"  • {desc} — {amount}")
+        if len(items) > 10:
+            lines.append(f"  … and {len(items) - 10} more")
+    return "\n".join(lines)
+
+
+async def exception_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle the inline View/Approve/Dismiss buttons on exception replies."""
+    query = update.callback_query
+    await query.answer()
+    _, exc_id_str, action = (query.data or "").split(":")
+    exc_id = int(exc_id_str)
+    chat_id = str(update.effective_user.id)
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        if action == "view":
+            resp = await client.get(
+                f"{BACKEND_URL}/telegram/exceptions/{exc_id}",
+                params={"telegram_user_id": chat_id},
+            )
+            if resp.status_code == 200:
+                await query.message.reply_text(_exception_view_text(resp.json()))
+            else:
+                await query.message.reply_text(f"⚠️ Couldn't load that exception ({resp.status_code}).")
+            return
+
+        resolved = "resolved" if action == "approve" else "dismissed"
+        resp = await client.post(
+            f"{BACKEND_URL}/telegram/exceptions/{exc_id}/resolve",
+            data={"telegram_user_id": chat_id, "action": resolved},
+        )
+        if resp.status_code == 200:
+            stamp = "✅ Approved — added to ledger." if resolved == "resolved" else "❌ Dismissed — not added."
+        elif resp.status_code == 400:
+            stamp = f"⏭️ {resp.json().get('detail', 'already handled')}."
+        else:
+            stamp = f"⚠️ Couldn't update ({resp.status_code})."
+        await query.edit_message_text(
+            f"{stamp}\n\n{query.message.text}",
+            reply_markup=None,
+        )
+
+
+async def audit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_user.id)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(
+            f"{BACKEND_URL}/telegram/audit",
+            params={"telegram_user_id": chat_id, "limit": 20},
+        )
+    if resp.status_code != 200:
+        await update.message.reply_text(f"❌ Audit failed ({resp.status_code}).")
+        return
+    rows = resp.json()
+    if not rows:
+        await update.message.reply_text("No activity recorded yet.")
+        return
+    lines = ["🕘 Recent activity:"]
+    for r in rows:
+        action = r.get("action", "")
+        note = r.get("note") or ""
+        when = (r.get("created_at") or "")[:10]
+        lines.append(f"• {when} {action} — {note}")
+    await update.message.reply_text("\n".join(lines[:22]))
 
 
 async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -127,9 +294,23 @@ async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not month:
         await update.message.reply_text("Usage: /monthend 2025-06")
         return
+    chat_id = str(update.effective_user.id)
     async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(f"{BACKEND_URL}/month-end/send", params={"month": month})
+        resp = await client.post(
+            f"{BACKEND_URL}/telegram/month-end/send",
+            data={"month": month, "telegram_user_id": chat_id},
+        )
     try:
+        if resp.status_code == 401:
+            await update.message.reply_text(
+                "⚠️ Your Telegram isn't linked to a ledger yet.\n"
+                f"Your chat ID is: {chat_id}\n"
+                "Open the LedgerLoop dashboard → Settings → paste it under "
+                "'Telegram chat ID'."
+            )
+            return
+        if resp.status_code != 200:
+            raise ValueError(resp.text)
         data = resp.json()
         s = data["bundle"]["summary"]
         mode = "sent ✉️" if not data.get("dry_run") else "prepared (dry-run, not emailed)"
@@ -145,8 +326,10 @@ def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("chatid", chat_id))
+    app.add_handler(CommandHandler("audit", audit))
     app.add_handler(CommandHandler("monthend", month_end))
     app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, handle_document))
+    app.add_handler(CallbackQueryHandler(exception_callback, pattern=r"^exc:"))
     log.info("LedgerLoop bot polling…")
     app.run_polling()
 

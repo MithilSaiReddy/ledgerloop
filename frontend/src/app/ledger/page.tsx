@@ -8,7 +8,7 @@ import { ExportButtons } from "@/components/send-panel";
 import { LedgerTable } from "@/components/ledger-table";
 import { LedgerTypeTabs } from "@/components/ledger-type-tabs";
 import { MonthNav } from "@/components/month-nav";
-import { api, defaultMonth } from "@/lib/api";
+import { api, BACKEND_URL, defaultMonth } from "@/lib/api";
 import { getAccessToken } from "@/lib/supabase-server";
 import { cn } from "@/lib/utils";
 
@@ -87,8 +87,7 @@ export default async function LedgerPage({
           <AlertCircle className="size-4" />
           <AlertTitle>Backend error</AlertTitle>
           <AlertDescription>
-            {error} — is the FastAPI service running on{" "}
-            {process.env.BACKEND_URL ?? "http://localhost:8000"}?
+            {error} — is the FastAPI service running on {BACKEND_URL}?
           </AlertDescription>
         </Alert>
       ) : (

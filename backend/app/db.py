@@ -18,6 +18,10 @@ if settings.is_postgres:
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=5,
+        # pgBouncer (Supabase pooler) can't reuse server-side prepared
+        # statements cleanly — identical queries collide with
+        # `DuplicatePreparedStatement`. Run plain, client-side only.
+        connect_args={"prepare_threshold": None},
     )
 else:
     # Local dev / tests: SQLite fallback (env DB_PATH honoured).
@@ -50,6 +54,27 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(engine)
+    _sqlite_add_missing_columns()
+
+
+def _sqlite_add_missing_columns() -> None:
+    """SQLite (local dev demo) can't add columns via create_all on an existing
+    DB file. Patch the new columns in defensively so old demo DBs keep working.
+    Postgres gets these from supabase/migrations instead."""
+    if settings.is_postgres:
+        return
+    from sqlalchemy import text
+
+    # (table, new column, sqlite column def)
+    patches = [
+        ("ledger", "tax_note", "text"),
+        ("user_settings", "tax_rates", "text"),
+    ]
+    with engine.begin() as conn:
+        for table, col, ddl in patches:
+            has = any(row[1] == col for row in conn.execute(text(f"pragma table_info({table})")))
+            if not has:
+                conn.execute(text(f"alter table {table} add column {col} {ddl}"))
 
 
 def get_db():

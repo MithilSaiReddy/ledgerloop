@@ -24,6 +24,26 @@ REASONS = {
     "BAD_DATE": "Invoice date missing or unparseable",
 }
 
+# Default GST rate (%) applied to a sales bill that prints no tax split.
+# GST 2.0 (56th GST Council, effective 22 Sep 2025) collapsed India's slabs to
+# two — 5% (merit) and 18% (standard). The owner picks ONE shop-wide default in
+# Settings (a "business type" quick-pick that stays editable). The bill category
+# below is only a fallback when the owner hasn't set their default yet.
+CATEGORY_GST_RATE: dict[str, float] = {
+    "groceries": 5.0,
+    "apparel": 5.0,
+    "electronics": 18.0,
+    "hardware": 18.0,
+    "stationery": 5.0,
+    "pharma": 5.0,
+    "food_services": 5.0,
+    "other": 18.0,
+}
+
+# Absolute last-resort standard rate when neither the owner's default nor a
+# known category yields a rate.
+STANDARD_GST_RATE = 18.0
+
 # HSN/SAC codes are numeric; valid lengths are 4, 6 or 8 digits.
 _HSN_RE = re.compile(r"^\d{4,8}$")
 
@@ -35,6 +55,22 @@ def valid_hsn(value: Optional[str]) -> bool:
     return len(v) in (4, 6, 8) and _HSN_RE.fullmatch(v) is not None
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y/%m/%d")
+_YY_FORMATS = ("%d/%m/%y", "%d-%m-%y", "%d.%m.%y")
+
+
+def _current_year() -> int:
+    return dt.date.today().year
+
+
+def _resolve_year(yy: int) -> int:
+    """Map a two-digit year to the century that makes the date 'relevant'.
+
+    Indian invoices carry short years like `9/26`. Pick the century whose year
+    is closest to today, so `26` -> 2026, `99` -> 1999 — never 1926 or 2099 for
+    a current bill.
+    """
+    now = _current_year()
+    return min((1900 + yy, 2000 + yy), key=lambda y: abs(y - now))
 
 
 def normalize_vendor(vendor: str) -> str:
@@ -42,7 +78,12 @@ def normalize_vendor(vendor: str) -> str:
 
 
 def parse_date(value: Optional[str]) -> Optional[str]:
-    """Return YYYY-MM-DD or None."""
+    """Return YYYY-MM-DD or None.
+
+    Accepts ISO dates, Indian DD/MM formatting (slash, dash or dot), and
+    two-digit years resolved to the relevant recent century (`25/9/26` ->
+    2026-09-25).
+    """
     if not value:
         return None
     v = str(value).strip()
@@ -51,6 +92,17 @@ def parse_date(value: Optional[str]) -> Optional[str]:
             return dt.datetime.strptime(v, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
+    for fmt in _YY_FORMATS:
+        try:
+            parsed = dt.datetime.strptime(v, fmt)
+        except ValueError:
+            continue
+        # strptime's %y uses a fixed 1969/1970 pivot that's wrong for current
+        # invoices; resolve the short trailing year against today instead.
+        m = re.search(r"(\d{1,2})$", v)
+        if m is None:
+            continue
+        return parsed.replace(year=_resolve_year(int(m.group(1)))).strftime("%Y-%m-%d")
     return None
 
 
@@ -70,6 +122,104 @@ def check_tax_sum(inv: dict[str, Any]) -> bool:
         return False
     tax = (_f(inv.get("cgst")) or 0.0) + (_f(inv.get("sgst")) or 0.0) + (_f(inv.get("igst")) or 0.0)
     return abs((taxable + tax) - total) <= TOLERANCE_INR
+
+
+def _is_interstate(owner: dict[str, Any], inv: dict[str, Any]) -> bool:
+    """True when the owner's state and the supply place differ (inter-state)."""
+    owner_state = (owner.get("state_code") or "").strip() or None
+    pos_state = state_code_from(inv.get("place_of_supply"))
+    return bool(owner_state and pos_state and pos_state != owner_state)
+
+
+def _shop_rate(owner: dict[str, Any], category: str | None) -> tuple[float, str]:
+    """The one shop-wide rate for a no-tax sale.
+
+    Order: the owner's single default (Settings, key "default") -> the bill
+    category default -> the 18% standard rate. Returns (rate, source_label)
+    so the tax_note stays transparent.
+    """
+    owner_rates = owner.get("tax_rates") or {}
+    default = owner_rates.get("default")
+    if default is not None:
+        return float(default), "your default rate"
+    cat = str(category or "").strip().lower()
+    if cat and CATEGORY_GST_RATE.get(cat) is not None:
+        return float(CATEGORY_GST_RATE[cat]), "bill category default"
+    return STANDARD_GST_RATE, "standard rate"
+
+
+def apply_tax_fallback(
+    inv: dict[str, Any],
+    owner: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    """Fill in CGST/SGST/IGST when the bill printed no tax split.
+
+    Returns (working_copy, tax_note):
+    - Embedded tax: `total > taxable` with zero tax lines — the difference IS the
+      tax on the document, split CGST+SGST (intra) or IGST (inter). Factual.
+    - Sales, GST-registered, still zero tax: derive the rate from the owner's
+      single shop default (Settings), treating the lump Total as GST-INCLUSIVE:
+      taxable = total / (1+r) and tax = total - taxable. Marked so the owner/CA
+      sees it was derived.
+    - Purchases with no tax at all: never invent a number (input credit can't be
+      claimed on a guess) — return a review note only.
+    """
+    owner = owner or {}
+    data = dict(inv)
+    if any(float(data.get(k) or 0.0) != 0.0 for k in ("cgst", "sgst", "igst")):
+        return data, None  # tax already present — nothing to do
+
+    taxable = _f(data.get("taxable_value"))
+    total = _f(data.get("total"))
+    if taxable is None or total is None:
+        return data, None
+
+    diff = round(total - taxable, 2)
+
+    # Embedded tax: the bill's own total exceeds its taxable sum and prints no
+    # tax lines, so the gap is the GST charged. This reflects the document.
+    if diff > TOLERANCE_INR:
+        inter = _is_interstate(owner, data)
+        if inter:
+            data["igst"] = diff
+            note = "tax embedded in total (no split printed) — recorded as IGST (inter-state)"
+        else:
+            data["cgst"] = data["sgst"] = round(diff / 2, 2)
+            suffix = "verify input credit with your CA" if data.get("type") == "purchase" else "assumed intra-state CGST+SGST"
+            note = f"tax embedded in total (no split printed) — {suffix}"
+        return data, note
+
+    # No tax anywhere: only worth deriving for GST-registered sales.
+    if abs(diff) > TOLERANCE_INR:
+        return data, None
+
+    inv_type = str(data.get("type") or "").lower()
+    if inv_type == "purchase":
+        return data, "no tax shown on purchase — verify input credit with your CA"
+
+    if not owner.get("gst_registered"):
+        return data, None
+
+    rate, rate_source = _shop_rate(owner, data.get("category"))
+    if not rate or rate <= 0:
+        return data, None
+
+    # Lump Total treated as GST-INCLUSIVE: strip the tax back out.
+    taxable_incl = round(total / (1 + rate / 100.0), 2)
+    tax = round(total - taxable_incl, 2)
+    data["taxable_value"] = taxable_incl
+    inter = _is_interstate(owner, data)
+    if inter:
+        data["igst"] = tax
+        side = "IGST (inter-state)"
+    else:
+        data["cgst"] = data["sgst"] = round(tax / 2, 2)
+        side = "CGST+SGST"
+    note = (
+        f"no tax printed — derived {rate:g}% ({rate_source} for "
+        f"{data.get('category') or 'uncategorized'}) {side} on GST-inclusive total"
+    )
+    return data, note
 
 
 def _tax_treatment_check(
@@ -139,6 +289,12 @@ def reconcile(
     owner = owner or {}
     owner_state = (owner.get("state_code") or "").strip() or None
 
+    # Fill in missing CGST/SGST/IGST before the tax-sum and tax-treatment
+    # checks: embedded tax from the total, or a category-derived rate on
+    # GST-registered sales that printed no tax at all.
+    derived, tax_note = apply_tax_fallback(extracted, owner)
+    extracted = derived
+
     missing = missing_required_fields(extracted)
     date = parse_date(extracted.get("date"))
 
@@ -170,6 +326,10 @@ def reconcile(
             "HSN/SAC code missing or invalid, needed for GST filing"
             + (f" (read {hsn!r})" if hsn else "")
         )
+
+    items = extracted.get("items") or []
+    if not isinstance(items, list):
+        items = []
 
     if not check_tax_sum(extracted):
         tax = (_f(extracted.get("cgst")) or 0.0) + (_f(extracted.get("sgst")) or 0.0) + (
@@ -213,5 +373,7 @@ def reconcile(
         "hsn_code": hsn,
         "place_of_supply": str(extracted.get("place_of_supply") or "") or None,
         "is_interstate": is_interstate,
+        "tax_note": tax_note,
+        "items": items,
     }
     return row, None, ""

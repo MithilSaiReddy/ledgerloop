@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "mistral-small-latest"
     llm_base_url: str = "https://api.mistral.ai/v1"
+    ocr_model: str = "mistral-ocr-latest"
 
     ca_email_default: str = ""
     email_dry_run: bool = True

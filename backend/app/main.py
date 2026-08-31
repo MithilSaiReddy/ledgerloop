@@ -81,7 +81,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(invoices.router)
 app.include_router(ledger.router)
 app.include_router(exceptions.router)
+app.include_router(exceptions.telegram_router)
 app.include_router(month_end.router)
+app.include_router(month_end.telegram_router)
 app.include_router(export.router)
 app.include_router(user_settings.router)
 

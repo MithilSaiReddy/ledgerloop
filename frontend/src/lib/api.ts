@@ -1,4 +1,20 @@
-const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
+// Server-rendered pages reach the API from inside the container (BACKEND_URL,
+// a runtime env var), while browser calls need a public URL
+// (NEXT_PUBLIC_BACKEND_URL, inlined at build time). Pick the right one per side.
+const SERVER_BACKEND =
+  typeof window === "undefined" ? (process.env.BACKEND_URL ?? "") : "";
+export const BACKEND_URL =
+  SERVER_BACKEND || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+const BACKEND = BACKEND_URL;
+
+export interface InvoiceItem {
+  description: string;
+  hsn_code: string | null;
+  quantity: number | null;
+  rate: number | null;
+  amount: number | null;
+}
 
 export interface LedgerEntry {
   id: number;
@@ -14,7 +30,18 @@ export interface LedgerEntry {
   igst: number;
   total: number;
   category: string;
+  hsn_code?: string | null;
+  tax_note?: string | null;
   source?: string;
+  items?: InvoiceItem[];
+}
+
+export interface InvoiceDetail {
+  id: number;
+  filename: string;
+  source: string;
+  converter_used: string;
+  raw_text: string;
 }
 
 export interface ExceptionItem {
@@ -94,6 +121,7 @@ export interface UserSettings {
   address: string | null;
   gst_registered: boolean;
   telegram_chat_id: string | null;
+  tax_rates: Record<string, number> | null;
 }
 
 function authHeaders(token?: string | null): Record<string, string> {
@@ -151,8 +179,13 @@ export const api = {
     get<{ bundle: MonthBundle; html: string }>(`/month-end/preview?month=${month}`, token),
 };
 
-export function exportUrl(month: string, format: "csv" | "json"): string {
-  return `${BACKEND}/export?month=${month}&format=${format}`;
+export function exportUrl(
+  month: string,
+  format: "csv" | "json",
+  type?: "purchase" | "sales",
+): string {
+  const t = type ? `&type=${type}` : "";
+  return `${BACKEND}/export?month=${month}&format=${format}${t}`;
 }
 
 /** Explicit ?month= wins; otherwise current month if it has data (or nothing
@@ -170,6 +203,29 @@ export async function defaultMonth(
   } catch {
     return cur;
   }
+}
+
+export async function getInvoice(invoiceId: number, token?: string | null): Promise<InvoiceDetail> {
+  return get<InvoiceDetail>(`/invoices/${invoiceId}`, token);
+}
+
+/** Fetch the stored original bill (image/PDF) as a blob URL for inline viewing. */
+export async function getInvoiceFile(
+  invoiceId: number,
+  token?: string | null,
+): Promise<{ url: string; kind: "image" | "pdf" | "text" | "other" }> {
+  const res = await fetch(`${BACKEND}/invoices/${invoiceId}/file`, {
+    cache: "no-store",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(`GET /invoices/${invoiceId}/file failed: ${res.status}`);
+  const mime = res.headers.get("content-type") ?? "";
+  const blob = await res.blob();
+  let kind: "image" | "pdf" | "text" | "other" = "other";
+  if (mime.startsWith("image/")) kind = "image";
+  else if (mime === "application/pdf") kind = "pdf";
+  else if (mime.startsWith("text/")) kind = "text";
+  return { url: URL.createObjectURL(blob), kind };
 }
 
 export async function patchLedger(id: number, field: string, value: string, token?: string | null) {
@@ -230,6 +286,7 @@ export async function saveUserSettings(
     address?: string;
     gst_registered?: boolean;
     telegram_chat_id?: string;
+    tax_rates?: Record<string, number>;
   },
   token?: string | null,
 ): Promise<{ ok: boolean; created: boolean; settings: UserSettings }> {
@@ -251,6 +308,27 @@ export async function saveGoogleTokens(
 
 export function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
+}
+
+/** Business types shown in Settings. Each quick-picks your shop's one default
+ * GST rate, which stays editable. Defaults follow the GST 2.0 slabs (in force
+ * since 22 Sep 2025): 5% merit for most retail goods, 18% standard otherwise. */
+export const BUSINESS_TYPES: { key: string; label: string; rate: number }[] = [
+  { key: "clothing", label: "Clothing / textiles / footwear", rate: 5 },
+  { key: "groceries", label: "Groceries / kirana", rate: 5 },
+  { key: "pharmacy", label: "Pharmacy / medicines", rate: 5 },
+  { key: "stationery", label: "Stationery / books", rate: 5 },
+  { key: "food_services", label: "Restaurant / food", rate: 5 },
+  { key: "electronics", label: "Electronics / appliances", rate: 18 },
+  { key: "hardware", label: "Hardware", rate: 18 },
+  { key: "general", label: "General store", rate: 18 },
+];
+
+/** The owner's single shop-wide GST rate (%): "default" in their settings, else
+ * null when unset (the backend falls back to the bill category / 18%). */
+export function defaultGstRate(settings: UserSettings | null): number | null {
+  const r = settings?.tax_rates?.default;
+  return typeof r === "number" && Number.isFinite(r) ? r : null;
 }
 
 /** Indian GST 2-digit state codes for the business-profile dropdown. */

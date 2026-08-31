@@ -21,19 +21,53 @@ Extract the fields below from the given invoice text. Respond with ONE JSON obje
 Rules:
 - Numbers are plain floats in INR, no commas, no currency symbols.
 - cgst + sgst are for intra-state supplies; igst for inter-state. Use 0 when absent.
-- date must be YYYY-MM-DD. Convert formats like 05/03/2025 (DD/MM/YYYY assumed for Indian invoices).
+- Tax lines may appear individually ("CGST 9% : 900", "SGST @ 9% : 900", "IGST 18% : 1800"),
+  as a combined single line ("GST (9%+9%) : 1800" — split it equally into cgst and sgst),
+  as a lone "GST 18% : 1800" (e.g. an inter-state/QP-registered vendor — read it as igst
+  unless the bill clearly shows CGST+SGST), or inside a line-items table.
+- If the bill prints tax amounts, ALWAYS capture them into cgst/sgst/igst — never leave
+  them 0 just because only "GST" or "Tax" is written. If the bill really shows no tax at all,
+  leave cgst/sgst/igst at 0 (the pipeline derives them later from taxable_value vs total).
+- taxable_value: the amount BEFORE tax (supply value). total: the final amount actually
+  paid, INCLUDING any tax. If a bill shows only one total with no taxable breakdown and no
+  tax lines, set taxable_value = total and leave taxes 0.
+- date must be YYYY-MM-DD. Indian bills use DD/MM/YYYY or DD/MM/YY — a
+  two-digit year like "25/9/26" means the relevant recent year (26 -> 2026), so
+  output 2026-09-25, never 1926. Convert formats like 05/03/2025 (DD/MM/YYYY
+  assumed for Indian invoices).
 - category: one of groceries, electronics, apparel, hardware, stationery, pharma, food_services, other.
 - hsn_code: the 4/6/8-digit HSN/SAC code shown on the invoice line, e.g. "5210" or "8517". null if absent.
 - place_of_supply: the 2-digit GST state code and/or state name where the goods are supplied (e.g. "27-Maharashtra", "Maharashtra"). null if absent.
 - type: is the shop the BUYER or the SELLER on this bill? Use "purchase" when the shop
   is buying (vendor/seller party is someone else, e.g. a supplier bill), "sale" when the
   shop issued the bill to its customer. Judge from Bill To / Ship To / seller details.
+- vendor: the OTHER party in this transaction from the shop's perspective — for a purchase,
+  the supplier/seller named on the bill; for a sale that the shop itself issued, the
+  CUSTOMER/buyer (the name under Bill To / Name / Sold To / Party). Never use the shop's
+  own name as the vendor.
+- Names (vendor, party_name, any customer/supplier name) must be copied EXACTLY as printed
+  on the bill — Indian names in Latin script may include suffixes like "(Gayathou)", family
+  names, or initials. Do not translate, abbreviate, reorder or 'clean up' them.
+- party_name: the name of the party written on the invoice (for a sale this is the customer;
+  for a purchase the supplier — usually the same as vendor). null when not shown.
+- items: extract each product/service line from the invoice's items table. For every line
+  capture the product description, its HSN/SAC code (null if absent), quantity (null if a
+  service or not shown), unit rate, and the line's taxable amount. Quantity may be written
+  inline like "900x2" (rate 900, qty 2) or in a QTY column — fill quantity/rate when
+  discernible, never invent lines.
+- If a line prints no HSN/SAC code, infer the COMMON Indian HSN/SAC for that product from
+  its description when you are confident — e.g. T-shirt/shirt/trousers/kurti → 6109/6204,
+  jeans → 6103, footwear → 6403, mobile/charger/powerbank → 8507, fan/light/wires → 85,
+  rice/wheat/dal/oil → 10/11/15, notebook/pen/office-ware → 4820/4817, medicine →
+  3004, toys → 9503. When unsure, use null.
 - If a field genuinely cannot be found, use null for it. Do NOT guess numbers.
 Schema:
 {"type": "purchase"|"sale"|null, "vendor": str|null, "party_name": str|null, "gstin": str|null,
  "invoice_no": str|null, "date": str|null, "taxable_value": float|null, "cgst": float|null,
  "sgst": float|null, "igst": float|null, "total": float|null, "category": str|null,
- "hsn_code": str|null, "place_of_supply": str|null}"""
+ "hsn_code": str|null, "place_of_supply": str|null,
+ "items": [{"description": str, "hsn_code": str|null, "quantity": float|null,
+            "rate": float|null, "amount": float|null}]}"""
 
 
 class StructureError(Exception):
@@ -50,6 +84,33 @@ def _coerce_float(value: Any) -> Optional[float]:
         return round(float(s), 2)
     except ValueError:
         return None
+
+
+def _normalize_items(raw: Any, bill_hsn: Optional[str]) -> list[dict[str, Any]]:
+    """Normalize the raw `items` from the model output into clean line rows.
+
+    Guards against malformed input: non-lists, nested junk, and blank
+    descriptions are all dropped. Each row keeps description + hsn_code +
+    quantity + rate + amount. The bill-level HSN is used as a fallback when
+    the item row itself is missing one.
+    """
+    out: list[dict[str, Any]] = []
+    if not isinstance(raw, list):
+        return out
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        desc = str(it.get("description") or "").strip()
+        if not desc:
+            continue
+        out.append({
+            "description": desc,
+            "hsn_code": (str(it.get("hsn_code") or "").strip()) or bill_hsn,
+            "quantity": _coerce_float(it.get("quantity")),
+            "rate": _coerce_float(it.get("rate")),
+            "amount": _coerce_float(it.get("amount")),
+        })
+    return out
 
 
 def demo_structure(markdown_text: str) -> dict[str, Any]:
@@ -127,6 +188,7 @@ def demo_structure(markdown_text: str) -> dict[str, Any]:
         "category": None,
         "hsn_code": inline(["HSN Code", "HSN"]),
         "place_of_supply": inline(["Place of Supply", "Place of supply", "Place Of Supply"]),
+        "items": [],  # the deterministic extractor operates on flattened sample bills
     }
     return normalize_extraction(raw)
 
@@ -185,6 +247,12 @@ def normalize_extraction(raw: dict[str, Any]) -> dict[str, Any]:
     for k in ("cgst", "sgst", "igst"):
         if out[k] is None:
             out[k] = 0.0
+    # For bills the shop itself issued (sales), the counterparty is the customer.
+    # If a distinct party/customer name was read, that is the ledger vendor — never
+    # the shop's own name printed at the top of the bill.
+    if out["type"] == "sale" and out["party_name"] and out["party_name"] != out["vendor"]:
+        out["vendor"] = out["party_name"]
+    out["items"] = _normalize_items(raw.get("items"), out["hsn_code"])
     return out
 
 
@@ -231,7 +299,7 @@ def llm_structure(
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": f"Invoice text:\n\n{markdown_text[:12000]}"},
                     ],
-                    "max_tokens": 600,
+                    "max_tokens": 1200,
                 },
                 timeout=60.0,
             )

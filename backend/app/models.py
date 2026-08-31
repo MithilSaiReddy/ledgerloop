@@ -47,6 +47,8 @@ class LedgerEntry(Base):
     file_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     raw_file_ref: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     edited_fields: Mapped[str] = mapped_column(Text, default="[]")  # JSON list of field names touched by human
+    items: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON list of line items
+    tax_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # why CGST/SGST were derived, if any
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -96,4 +98,5 @@ class UserSettings(Base):
     google_access_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     google_refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     google_token_expiry: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    tax_rates: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON {category: gst_rate %}
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)

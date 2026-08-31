@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/components/auth-provider";
-import { GST_STATES, getUserSettings, saveUserSettings } from "@/lib/api";
+import { BUSINESS_TYPES, defaultGstRate, GST_STATES, getUserSettings, saveUserSettings } from "@/lib/api";
 
 /** Shared form for onboarding (/onboarding) and editing later (/settings). */
 export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
@@ -33,6 +33,7 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
   const [address, setAddress] = useState("");
   const [gstRegistered, setGstRegistered] = useState(false);
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [defaultRate, setDefaultRate] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,8 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
           setAddress(s.address ?? "");
           setGstRegistered(s.gst_registered ?? false);
           setTelegramChatId(s.telegram_chat_id ?? "");
+          const saved = defaultGstRate(s);
+          setDefaultRate(saved !== null ? String(saved) : "");
         })
         .catch(() => toast.error("Couldn't load your settings. Is the backend running?"));
       return () => {
@@ -77,6 +80,11 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
     setBusy(true);
     setError(null);
     try {
+      const parsedDefault = Number(defaultRate);
+      const tax_rates: Record<string, number> =
+        defaultRate.trim() !== "" && Number.isFinite(parsedDefault) && parsedDefault >= 0
+          ? { default: parsedDefault }
+          : {};
       await saveUserSettings(
         {
           shop_name: shopName,
@@ -87,6 +95,7 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
           address,
           gst_registered: gstRegistered,
           telegram_chat_id: telegramChatId,
+          tax_rates: Object.keys(tax_rates).length ? tax_rates : undefined,
         },
         session.access_token,
       );
@@ -175,6 +184,47 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
         <p className="text-xs text-muted-foreground">
           Used to work out intra- vs inter-state GST on each bill.
         </p>
+      </div>
+
+      <div className="grid gap-3">
+        <Label htmlFor="default_rate">Default GST rate</Label>
+        <p className="text-xs text-muted-foreground">
+          When a sale bill shows no tax, LedgerLoop adds CGST and SGST at this
+          one rate. Pick your business type or type your own — change it anytime.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {BUSINESS_TYPES.map((b) => (
+            <Button
+              key={b.key}
+              type="button"
+              variant={defaultRate === String(b.rate) ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setDefaultRate(String(b.rate))}
+            >
+              {b.label} · {b.rate}%
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <Input
+            id="default_rate"
+            type="number"
+            min={0}
+            step={0.5}
+            inputMode="decimal"
+            placeholder="e.g. 5"
+            value={defaultRate}
+            disabled={!gstRegistered}
+            onChange={(e) => setDefaultRate(e.target.value)}
+            className="w-32"
+          />
+          <p className="text-xs text-muted-foreground">
+            {gstRegistered
+              ? "Clothing up to ₹2,500/piece is 5%; above that it's 18%."
+              : "Turn on GST registration above to set a rate."}
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-2">

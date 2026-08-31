@@ -20,6 +20,17 @@ class SettingsBody(BaseModel):
     address: str | None = None
     gst_registered: bool = False
     telegram_chat_id: str | None = None
+    tax_rates: dict[str, float] | None = None  # {category: GST rate %} overrides
+
+
+def _parse_tax_rates(row: UserSettings) -> dict[str, float] | None:
+    if not row.tax_rates:
+        return None
+    try:
+        raw = json.loads(row.tax_rates)
+        return raw if isinstance(raw, dict) else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _serialize(row: UserSettings) -> dict:
@@ -33,6 +44,7 @@ def _serialize(row: UserSettings) -> dict:
         "address": row.address,
         "gst_registered": row.gst_registered,
         "telegram_chat_id": row.telegram_chat_id,
+        "tax_rates": _parse_tax_rates(row),
     }
 
 
@@ -98,6 +110,7 @@ def save_my_settings(
     row.address = (body.address or "").strip() or None
     row.gst_registered = bool(body.gst_registered)
     row.telegram_chat_id = (body.telegram_chat_id or "").strip() or None
+    row.tax_rates = json.dumps(body.tax_rates) if body.tax_rates else None
 
     db.add(AuditLog(
         actor="dashboard", action="update_settings", entity_type="settings",

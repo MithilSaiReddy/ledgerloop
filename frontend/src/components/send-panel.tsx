@@ -19,13 +19,20 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/auth-provider";
 import { exportUrl, sendMonthEnd, type MonthBundle } from "@/lib/api";
 
-async function downloadExport(month: string, format: "csv" | "json", token?: string | null) {
-  const res = await fetch(exportUrl(month, format), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+async function downloadExport(
+  month: string,
+  format: "csv" | "json",
+  type?: "purchase" | "sales",
+  token?: string | null,
+) {
+  const res = await fetch(exportUrl(month, format, type), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
   const blob = await res.blob();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `ledgerloop-${month}.${format}`;
+  a.download = type ? `${type}-${month}.csv` : `ledgerloop-${month}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -34,11 +41,19 @@ export function ExportButtons({ month }: { month: string }) {
   const { session } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  async function download(format: "csv" | "json") {
+  async function download(type: "purchase" | "sales" | "json") {
     setBusy(true);
     try {
-      await downloadExport(month, format, session?.access_token);
-      toast.success(`Ledger downloaded as ${format.toUpperCase()}`);
+      if (type === "json") {
+        await downloadExport(month, "json", undefined, session?.access_token);
+      } else {
+        await downloadExport(month, "csv", type, session?.access_token);
+      }
+      toast.success(
+        type === "json"
+          ? "Full detail downloaded as JSON"
+          : `${type[0].toUpperCase()}${type.slice(1)} register downloaded`,
+      );
     } catch {
       toast.error("Couldn't export the ledger. Is the backend running?");
     } finally {
@@ -49,12 +64,17 @@ export function ExportButtons({ month }: { month: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-sm text-muted-foreground">Export:</span>
-      <Button variant="outline" size="sm" disabled={busy} onClick={() => download("csv")}>
+      <Button variant="outline" size="sm" disabled={busy} onClick={() => download("purchase")}>
         <Download className="mr-1.5 size-3.5" />
-        CSV
+        Purchases (CSV)
+      </Button>
+      <Button variant="outline" size="sm" disabled={busy} onClick={() => download("sales")}>
+        <Download className="mr-1.5 size-3.5" />
+        Sales (CSV)
       </Button>
       <Button variant="outline" size="sm" disabled={busy} onClick={() => download("json")}>
-        JSON
+        <Download className="mr-1.5 size-3.5" />
+        Full detail (JSON)
       </Button>
     </div>
   );
@@ -76,7 +96,7 @@ export function SendPanel({ html, month }: { html: string; month: string }) {
       const data = await sendMonthEnd(month, session?.access_token);
       setResult(data);
       setState("done");
-      toast.success(data.dry_run ? "Preview logged (dry-run — nothing emailed)" : "Month-end summary sent to your CA");
+      toast.success(data.dry_run ? "Preview logged (dry-run — nothing emailed)" : "Registers sent to your CA");
       router.refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Send failed. Please try again.";
@@ -124,9 +144,10 @@ export function SendPanel({ html, month }: { html: string; month: string }) {
             <DialogTitle>Confirm send to CA</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This emails the {month} ledger summary and exception list to the CA
-            address on your account, and records it in your audit log. No filing
-            or approval happens automatically.
+            This emails the {month} purchase and sales registers (CSV, one row
+            per bill) with a short note to the CA address on your account, and
+            records it in your audit log. No filing or approval happens
+            automatically.
           </p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmOpen(false)}>

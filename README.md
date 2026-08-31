@@ -4,7 +4,7 @@
 Track 4 (AI Finance Controller).
 
 Shopkeepers forward invoice photos/PDFs on Telegram or upload them on the web →
-the Hermes Agent runs them through a parse → structure → reconcile pipeline →
+the backend runs them through a parse → structure → reconcile pipeline →
 clean invoices land in a single ledger; anything ambiguous gets flagged with a
 plain-language reason and an instant Telegram notification → at month-end, one
 confirmed command emails the summary + exception list to the CA. A dashboard
@@ -16,7 +16,7 @@ lets the shopkeeper/CA fix misread fields first, and every edit is audited.
 | --- | --- |
 | Frontend | Next.js 16 (App Router, RSC) + shadcn/ui + Tailwind, Google login via Supabase Auth |
 | API | FastAPI + SQLAlchemy + Supabase Postgres (row-level security per owner) |
-| Parsing | MarkItDown (PDFs/docs) with pytesseract fallback for scanned photos |
+| Parsing | MarkItDown (PDFs/docs) + OCR for images: Mistral OCR (via `LLM_API_KEY` + `OCR_MODEL`) first on camera photos, pytesseract fallback |
 | Structuring | Mistral API (OpenAI-compatible; Llama 3.3 on Groq works too — `LLM_*` env vars) |
 | Telegram | Standalone `python-telegram-bot` worker: forward invoices to a bot → POSTed to the backend API |
 | Email | Gmail API with the owner's own OAuth token (no shared SMTP account), `EMAIL_DRY_RUN` guard |
@@ -27,7 +27,9 @@ lets the shopkeeper/CA fix misread fields first, and every edit is audited.
 2. **INVALID_GSTIN** — regex + official mod-36 checksum validation
 3. **GSTIN_MISSING** / **EXTRACTION_INCOMPLETE** — required fields unreadable
 4. **TAX_MISMATCH** — `taxable_value + cgst + sgst + igst ≠ total` beyond ₹1 tolerance
-5. **BAD_DATE** — unparseable date
+5. **HSN_MISSING** — HSN/SAC code missing or invalid, needed for GST filing
+6. **TAX_TREATMENT_MISMATCH** — intra/inter-state tax treatment doesn't match the place of supply
+7. **BAD_DATE** — unparseable date
 
 Hard failures (unreadable file, LLM unavailable) also land in `exceptions`
 (`CONVERSION_FAILED`, `LLM_UNAVAILABLE`, `EXTRACTION_FAILED`) so nothing ever
@@ -67,8 +69,11 @@ cp .env.example .env   # fill it in once:
 #    add scopes: openid,email,profile,https://www.googleapis.com/auth/gmail.send
 # 3. Paste SUPABASE_URL/ANON_KEY into NEXT_PUBLIC_SUPABASE_*
 # 4. Add LLM_API_KEY (Mistral), optionally TELEGRAM_BOT_TOKEN
-# 5. Run backend/supabase/migrations/001_init.sql in the Supabase SQL editor
-# 6. Remove/clear DEMO_MODE and SEED_DEMO=true (or leave — it self-disables with a real backend)
+# 5. In the Supabase SQL editor, run the migrations in filename order —
+#    001, 002, 003_* and 004 (all additive, safe on a fresh or existing DB)
+# 6. Clear DEMO_MODE (or leave it — the backend demo self-disables once a real
+#    Supabase backend is configured). ALSO clear NEXT_PUBLIC_DEMO_MODE: the
+#    frontend stays in demo mode while that is set to `1`
 
 docker compose up --build
 ```
@@ -97,7 +102,10 @@ reconciliation happens in the backend.
 TELEGRAM_BOT_TOKEN=<your-bot-token> docker compose up --build
 ```
 
-Commands the bot understands: `/start`, `/chatid`, `/monthend YYYY-MM`.
+Commands the bot understands: `/start`, `/chatid`, `/audit`, `/monthend YYYY-MM`.
+Exceptions can be reviewed right in chat with **Approve / Dismiss / View** inline
+buttons. `/monthend` sends on behalf of the owner linked to your chat — grab the
+mapping from `/chatid`.
 
 ## Dataset & evaluation
 
@@ -123,7 +131,7 @@ every mismatch. Nothing is cherry-picked.
 
 ```
 backend/    FastAPI app, pipeline (convert→structure→reconcile), models, tests
-            supabase/migrations/001_init.sql — schema + row-level security
+            supabase/migrations/ — incremental schema + RLS (001, 002, 003_*, 004)
 frontend/   Next.js 16 dashboard: Google login (or demo mode), /upload /ledger /exceptions /audit /send
 telegram/   standalone Telegram ingestion worker (bot.py + Dockerfile)
 data/       invoice generator, synthetic samples (generated on the fly), ground truth labels
