@@ -176,3 +176,85 @@ def recheck_entry(
         "tax_sum_ok": check_tax_sum(data),
         "gstin_ok": gstin_valid(entry.gstin),
     }
+
+
+# --- Telegram-authenticated variant (chat-id -> owner via user_settings) ---
+
+telegram_router = APIRouter(prefix="/telegram", tags=["telegram"])
+
+
+def _telegram_owner(db: Session, telegram_user_id: str | None) -> str:
+    from app.routes.invoices import _owner_for_telegram
+
+    return _owner_for_telegram(db, telegram_user_id)
+
+
+def _latest_month_with_data(db: Session, owner_id: str) -> str:
+    row = (
+        db.query(LedgerEntry.date)
+        .filter(LedgerEntry.owner_id == owner_id)
+        .order_by(LedgerEntry.date.desc())
+        .first()
+    )
+    return row[0][:7] if row else None
+
+
+@telegram_router.get("/ledger")
+def telegram_get_ledger(
+    month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    telegram_user_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Compact per-month summary for the /ledger bot command.
+
+    Totals-only shape (the bot renders a short chat-friendly message): count,
+    purchases/sales split, money in/out, net, GST and open exceptions, plus a
+    resolved `month` (the requested one, or the latest month with data).
+    """
+    from collections import defaultdict
+
+    owner_id = _telegram_owner(db, telegram_user_id)
+    if not month:
+        month = _latest_month_with_data(db, owner_id)
+
+    entries = (
+        db.query(LedgerEntry)
+        .filter(LedgerEntry.owner_id == owner_id)
+        .filter(LedgerEntry.date.like(f"{month}%"))
+        .all()
+    )
+    exc_counts: dict[str, int] = defaultdict(int)
+    for status, m in (
+        db.query(ExceptionRow.status, ExceptionRow.month)
+        .filter(ExceptionRow.owner_id == owner_id, ExceptionRow.status == "open")
+        .all()
+    ):
+        if status == "open" and m:
+            exc_counts[m] += 1
+
+    purchases = sales = 0
+    money_in = money_out = gst = taxable = total = 0.0
+    for e in entries:
+        gst += (e.cgst or 0) + (e.sgst or 0) + (e.igst or 0)
+        taxable += e.taxable_value or 0
+        total += e.total or 0
+        if e.type == "sale":
+            sales += 1
+            money_in += e.total or 0
+        elif e.type == "purchase":
+            purchases += 1
+            money_out += e.total or 0
+
+    return {
+        "month": month,
+        "count": len(entries),
+        "purchases": purchases,
+        "sales": sales,
+        "money_in": round(money_in, 2),
+        "money_out": round(money_out, 2),
+        "net": round(money_in - money_out, 2),
+        "gst": round(gst, 2),
+        "taxable_value": round(taxable, 2),
+        "total": round(total, 2),
+        "open_exceptions": exc_counts.get(month, 0),
+    }

@@ -10,6 +10,7 @@ Local:   TELEGRAM_BOT_TOKEN=... BACKEND_URL=http://localhost:8000 python bot.py
 
 import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -145,9 +146,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Paste it into Settings on the dashboard so I know which ledger is yours.\n\n"
         "Tip: send the bill as a File 📎 (not a compressed photo) — it reads more accurately.\n\n"
         "Commands:\n"
-        "/chatid — show this chat ID again\n"
+        "/send — email this month's registers to your CA\n"
+        "/send 2025-06 — email a specific month to your CA\n"
+        "/ledger — see this month's totals\n"
+        "/ledger 2025-06 — see a specific month's totals\n"
         "/audit — see recent activity in your ledger\n"
-        "/monthend YYYY-MM — email summary + exceptions to your CA"
+        "/chatid — show this chat ID again"
     )
 
 
@@ -289,12 +293,81 @@ async def audit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines[:22]))
 
 
-async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    month = context.args[0] if context.args else None
-    if not month:
-        await update.message.reply_text("Usage: /monthend 2025-06")
-        return
+def _button_safe_origin() -> bool:
+    """Whether FRONTEND_ORIGIN can be used for inline-keyboard URL buttons.
+
+    Telegram validates inline-button URLs server-side and only accepts public,
+    reachable HTTPS URLs — plain http and localhost are rejected. In a local
+    demo we therefore fall back to a plain-text clickable link, which the
+    user's own Telegram client can open (including on localhost).
+    """
+    origin = FRONTEND_ORIGIN
+    if not origin.startswith("https://"):
+        return False
+    host = origin.split("://", 1)[1].split("/", 1)[0].lower()
+    banned = ("localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]")
+    return not host.startswith(banned)
+
+
+def _dashboard_link_line(path: str) -> str:
+    return f"Dashboard: {FRONTEND_ORIGIN}{path}"
+
+
+async def _reply_dashboard(update_or_message, text: str, path: str) -> None:
+    """Reply with text, adding an inline button when safe, else a plain link line."""
+    reply_kwargs = {}
+    if _button_safe_origin():
+        reply_kwargs["reply_markup"] = InlineKeyboardMarkup([[
+            InlineKeyboardButton("Open in dashboard", url=f"{FRONTEND_ORIGIN}{path}")
+        ]])
+    else:
+        text = f"{text}\n{_dashboard_link_line(path)}"
+    await update_or_message.reply_text(text, **reply_kwargs)
+
+
+async def ledger(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_user.id)
+    month = context.args[0] if context.args else None
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(
+            f"{BACKEND_URL}/telegram/ledger",
+            params={"telegram_user_id": chat_id, "month": month} if month
+            else {"telegram_user_id": chat_id},
+        )
+    if resp.status_code == 401:
+        await update.message.reply_text(
+            "⚠️ Your Telegram isn't linked to a ledger yet.\n"
+            f"Your chat ID is: {chat_id}\n"
+            "Open the LedgerLoop dashboard → Settings → paste it under "
+            "'Telegram chat ID'."
+        )
+        return
+    if resp.status_code != 200:
+        await update.message.reply_text(f"❌ Couldn't load the ledger ({resp.status_code}).")
+        return
+    d = resp.json()
+    month = d["month"]
+    if d["count"] == 0:
+        await _reply_dashboard(
+            update.message, f"📒 {month}: no bills recorded.", f"/ledger?month={month}"
+        )
+        return
+    s = d
+    lines = [
+        f"📒 {month}",
+        f"Bills: {s['count']}  ({s['purchases']} purchases · {s['sales']} sales)",
+        f"Money in  {_fmt_money(s['money_in'])}",
+        f"Money out {_fmt_money(s['money_out'])}",
+        f"Net       {_fmt_money(s['net'])}",
+        f"GST       {_fmt_money(s['gst'])}",
+    ]
+    if s["open_exceptions"]:
+        lines.append(f"⚠️ {s['open_exceptions']} open exception(s)")
+    await _reply_dashboard(update.message, "\n".join(lines), f"/ledger?month={month}")
+
+
+async def _perform_month_end_send(chat_id: str, month: str, message) -> None:
+    """Shared POST to run the CA month-end send and reply with the summary."""
     async with httpx.AsyncClient(timeout=120.0) as client:
         resp = await client.post(
             f"{BACKEND_URL}/telegram/month-end/send",
@@ -302,7 +375,7 @@ async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     try:
         if resp.status_code == 401:
-            await update.message.reply_text(
+            await message.reply_text(
                 "⚠️ Your Telegram isn't linked to a ledger yet.\n"
                 f"Your chat ID is: {chat_id}\n"
                 "Open the LedgerLoop dashboard → Settings → paste it under "
@@ -314,12 +387,55 @@ async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = resp.json()
         s = data["bundle"]["summary"]
         mode = "sent ✉️" if not data.get("dry_run") else "prepared (dry-run, not emailed)"
-        await update.message.reply_text(
+        text = (
             f"📧 Month-end {month} {mode}: {s['count']} invoices, "
             f"₹{s['grand_total']:,.0f}, {s['open_exceptions']} open exceptions."
         )
+        await _reply_dashboard(message, text, f"/send?month={month}")
     except Exception:
-        await update.message.reply_text(f"❌ Month-end failed ({resp.status_code})")
+        await message.reply_text(f"❌ Month-end failed ({resp.status_code})")
+
+
+async def send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    month = context.args[0] if context.args else None
+    if month and len(month) != 7:
+        await update.message.reply_text("Usage: /send 2025-06 (or /send for this month)")
+        return
+    month = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    chat_id = str(update.effective_user.id)
+    markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Yes, email my CA", callback_data=f"sendc:{month}:yes"),
+            InlineKeyboardButton("❌ Cancel", callback_data=f"sendc:{month}:cancel"),
+        ]
+    ])
+    await update.message.reply_text(
+        f"Send the {month} purchase & sales registers + a note to your CA?\n"
+        "No filing happens automatically — just the monthly email.",
+        reply_markup=markup,
+    )
+
+
+async def send_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle the /send confirmation buttons (Yes / Cancel)."""
+    query = update.callback_query
+    await query.answer()
+    _, month, action = (query.data or "").split(":")
+    chat_id = str(update.effective_user.id)
+    if action == "cancel":
+        await query.edit_message_text("❌ Send cancelled. Nothing was emailed.")
+        return
+    await query.edit_message_text(f"⏳ Sending {month} to your CA…")
+    await _perform_month_end_send(chat_id, month, query.message)
+
+
+async def month_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    month = context.args[0] if context.args else None
+    if not month:
+        await update.message.reply_text("Usage: /monthend 2025-06")
+        return
+    chat_id = str(update.effective_user.id)
+    await _perform_month_end_send(chat_id, month, update.message)
 
 
 def main():
@@ -328,8 +444,11 @@ def main():
     app.add_handler(CommandHandler("chatid", chat_id))
     app.add_handler(CommandHandler("audit", audit))
     app.add_handler(CommandHandler("monthend", month_end))
+    app.add_handler(CommandHandler("send", send))
+    app.add_handler(CommandHandler("ledger", ledger))
     app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, handle_document))
     app.add_handler(CallbackQueryHandler(exception_callback, pattern=r"^exc:"))
+    app.add_handler(CallbackQueryHandler(send_callback, pattern=r"^sendc:"))
     log.info("LedgerLoop bot polling…")
     app.run_polling()
 
