@@ -1,0 +1,191 @@
+════════════════════════════════════════════════════════════════════
+  LedgerLoop — the AI finance-controller for Indian shopkeepers
+════════════════════════════════════════════════════════════════════
+
+LedgerLoop is a friendly "finance controller" that lives in your pocket
+and does the bookkeeping your CA usually nags you about. You just send
+it your bills — a photo from your phone, a PDF, a WhatsApp-style forward
+— and it reads them, files them correctly, flags anything suspicious,
+and hands your CA clean, GST-ready registers at month-end. It's built
+for India, for Indian GST, and for shopkeepers who don't want to be
+accountants.
+
+It was built for Razorpay's AI Buildathon (Track 4: AI Finance Controller).
+
+
+────────────────────────────────────────────────────────────────────
+1. WHAT IT DOES FOR YOU — THE WHOLE FLOW
+────────────────────────────────────────────────────────────────────
+
+    Snap / send a bill  ──▶  LedgerLoop reads it  ──▶
+    You glance & approve ──▶  It's filed cleanly    ──▶
+    Month-end: your CA gets two ready-to-file registers
+
+Every bill you ever get — purchase, sale, GST or tax-free, messy or
+clean — ends up in ONE simple ledger. Nothing gets lost, nothing gets
+filed without your say-so.
+
+How you add a bill (your choice):
+  • Telegram: forward a photo or PDF to your bot in one message.
+  • Web: drop it on the upload page in your dashboard.
+
+What happens next, automatically:
+  1. The app reads the bill — even bad camera photos are OCR'd so
+     print stays readable.
+  2. It extracts the important fields: who the party is (supplier or
+     customer), bill number, date, GSTIN, taxable amount, tax split,
+     total, category, and the HSN codes of the goods.
+  3. It checks everything at once (see "catches problems" below).
+  4. Clean bills go straight into the ledger; anything doubtful is
+     parked with a plain-language reason so you can decide quickly.
+
+
+────────────────────────────────────────────────────────────────────
+2. EVERYTHING IT DOES — THE FEATURES
+────────────────────────────────────────────────────────────────────
+
+A. BILL INTAKE THAT ACTUALLY WORKS ON INDIAN BILLS
+   • Send bills by Telegram photo, PDF, or web upload.
+   • Camera photos are enhanced and OCR'd, so scans don't need to be
+     perfect — a phone pic of a kirana bill works.
+   • Every filed bill keeps its original file — tap to view the actual
+     bill anytime and double-check the numbers, right from the ledger.
+   • Bills are filed under the right month automatically from the date
+     on the bill (Indian day/month/year style is understood).
+
+B. GST, DONE THE INDIAN WAY
+   • One default GST rate for your whole shop — you pick your business
+     type (clothing, groceries, pharmacy, stationery, restaurant,
+     electronics, hardware, general store) and the app sets the right
+     rate, which you can edit anytime.
+   • Rates follow the current Government rules (GST 2.0, in force since
+     22 Sep 2025): 5% merit rate for most retail goods, 18% standard
+     otherwise. Clothing up to ₹2,500 per piece is 5%.
+   • When a bill shows only a lump total with no tax printed, the app
+     works out CGST + SGST (same state) or IGST (inter-state) for you —
+     and always shows a small note on the entry explaining why that tax
+     was calculated.
+   • Purchases NEVER get fake input-tax invented — if a bill doesn't
+     show tax, it stays tax-free with a "please verify" note.
+   • A CA-ready report keeps per-item HSN/SAC codes from every bill.
+
+C. IT CATCHES PROBLEMS BEFORE YOUR CA DOES
+   The app triple-checks every single bill and flags anything odd in
+   plain language:
+   • Duplicate bill — same supplier and bill number already filed.
+   • Invalid GSTIN — checked against the official format AND the
+     government's mod-36 checksum, not just "looks about right".
+   • Tax mismatch — taxable + CGST + SGST + IGST doesn't equal the
+     total.
+   • Missing or invalid HSN/SAC code (needed for filing).
+   • Wrong tax treatment — intra-state tax where it should be
+     inter-state, or vice versa.
+   • Unreadable date or missing fields.
+   • Hard failures (unreadable file, service down) are also parked —
+     nothing ever silently vanishes.
+   Every flagged bill has a button to review, correct, approve, or
+   dismiss — from your Telegram chat OR the dashboard.
+
+D. REVIEW IN SECONDS, RIGHT IN TELEGRAM
+   • Approve / Dismiss / View buttons appear right under the flagged
+     bill in your chat — no need to open the web app.
+   • /audit shows your recent activity; /monthend sends the month-end
+     email on your behalf.
+
+E. MONTH-END FOR YOUR CA — ONE TAP, CLEAN OUTPUT
+   • Press "Send to CA" and your CA receives an email with two
+     attachments and a short note. That's it — no 40-page summary.
+   • Purchases register (CSV) and Sales register (CSV), in the format
+     the GST ecosystem expects (the same shape as GSTR-1 / GSTR-2B).
+   • One row per bill — date (DD-MM-YYYY), party name, bill number,
+     party GSTIN, invoice value, taxable value, and CGST/SGST/IGST.
+   • Both files are attached every month, even if one register is
+     empty (so your CA sees a clean zero, not a missing file).
+   • You can also download the two CSVs yourself from the dashboard,
+     plus a full-detail JSON backup of everything.
+
+F. YOUR DASHBOARD
+   • Ledger — every filed bill for any month, expand a row to see the
+     tax note and details.
+   • Exceptions — everything flagged, with reasons, ready to review.
+   • Send — preview exactly what your CA will receive, then send.
+   • Audit — a tamper-proof history of every edit and send.
+   • Settings — business type, GST rate, your state (for intra/
+     inter-state GST), GST registration on/off, and your CA's email.
+
+
+────────────────────────────────────────────────────────────────────
+3. WHAT YOUR CA RECEIVES (AND WHY IT'S FILE-READY)
+────────────────────────────────────────────────────────────────────
+
+At month-end the CA gets an email with:
+
+  Subject:  [LedgerLoop] 2026-08 registers for CA review
+  Body:     A few lines — these are the purchase & sales registers for
+            the month, auto-extracted and pending your review; no
+            returns have been filed.
+
+  Attachments:
+    • purchases-2026-08.csv   — Purchase register
+        GSTIN of Supplier │ Supplier Name │ Invoice Number │ Invoice
+        Date │ Invoice Value │ Taxable Value │ CGST │ SGST │ IGST
+    • sales-2026-08.csv       — Sales register
+        GSTIN of Recipient │ Customer Name │ Invoice Number │ Invoice
+        Date │ Place of Supply │ Invoice Value │ Taxable Value │
+        CGST │ SGST │ IGST
+
+That's exactly the format used for GST-return reconciliation, so your
+CA can drop the files straight into their tools. Every entry says who
+the party is, the bill number, the value, and the tax split — one row
+per bill, nothing more, nothing missing.
+
+
+────────────────────────────────────────────────────────────────────
+4. TRUST & SAFETY — NON-NEGOTIABLES
+────────────────────────────────────────────────────────────────────
+
+   • LedgerLoop NEVER files anything. No returns, no approvals, no
+     auto-payment. Sending to your CA is always you pressing the button.
+   • Nothing is ever silently dropped — every unreadable bill lands in
+     exceptions with a reason.
+   • Auto-calculated tax always carries a visible "why" note, so you
+     (and your CA) can tell computed from printed.
+   • Every edit, approve, dismiss, and send is written to an audit log
+     — a clean history if your CA asks "where did this come from?".
+   • Figures are labelled "auto-extracted — pending CA review", not
+     final filing data.
+   • Emails go out through your own Google account token (no shared
+     mail server reading your data), and a dry-run guard means nothing
+     leaves the machine until you configure sending.
+
+
+────────────────────────────────────────────────────────────────────
+5. BUILT FOR INDIA, FULLY
+────────────────────────────────────────────────────────────────────
+
+   • Indian GST states and state codes (Karnataka 29, Maharashtra 27, …)
+   • Intra-state → CGST + SGST; inter-state → IGST
+   • GSTIN validation with the official mod-36 checksum
+   • Indian date format on exports (DD-MM-YYYY)
+   • HSN/SAC codes for goods
+   • ₹ amounts, GST 2.0 slabs (5% / 18%)
+   • Local kirana realities: phone-photo bills, lump totals with no tax
+     printed, ink that smudges — all handled.
+
+
+────────────────────────────────────────────────────────────────────
+6. QUICK START (USING IT, NOT SETTING IT UP)
+────────────────────────────────────────────────────────────────────
+
+   1. Open the dashboard (or just open your Telegram chat with the bot).
+   2. Send your first bill — a photo or PDF works.
+   3. It files itself; if it's flagged, tap Approve or Dismiss.
+   4. Browse the ledger — every bill is there with its tax split.
+   5. Download "Purchases (CSV)" and "Sales (CSV)" for your own records.
+   6. At month-end, hit "Send to CA" — your CA gets the two registers
+      with a short note.
+
+That's the whole job. Send a bill, glance, approve, done — and in the
+background your books stay correct, audited, and GST-ready for when
+your CA asks.
+════════════════════════════════════════════════════════════════════

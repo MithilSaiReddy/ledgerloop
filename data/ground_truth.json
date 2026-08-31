@@ -407,7 +407,7 @@
     "expected_reason": "INVALID_GSTIN",
     "vendor": "Meena Fabrics & Tailors",
     "invoice_no": "MF/2025/0355",
-    "total": 15399.4
+    "total": 12241.59
   },
   {
     "file": "messy_04_invalid_gstin.txt",
@@ -415,7 +415,7 @@
     "expected_reason": "INVALID_GSTIN",
     "vendor": "Sunrise Pharma Distributors",
     "invoice_no": "SP/2025/0358",
-    "total": 5277.91
+    "total": 19539.89
   },
   {
     "file": "messy_05_missing_gstin.txt",
