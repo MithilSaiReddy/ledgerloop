@@ -11,7 +11,7 @@ export function AddInvoiceButton({ label = "Add an invoice" }: { label?: string 
   return (
     <>
       <Button onClick={() => setOpen(true)}>
-        <Plus className="mr-1.5 size-4" />
+        <Plus data-icon="inline-start" />
         {label}
       </Button>
       <UploadDialog open={open} onOpenChange={setOpen} />

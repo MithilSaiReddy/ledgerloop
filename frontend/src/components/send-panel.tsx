@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/auth-provider";
 import { exportUrl, sendMonthEnd, type MonthBundle } from "@/lib/api";
@@ -62,18 +63,18 @@ export function ExportButtons({ month }: { month: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Export:</span>
       <Button variant="outline" size="sm" disabled={busy} onClick={() => download("purchase")}>
-        <Download className="mr-1.5 size-3.5" />
+        <Download data-icon="inline-start" />
         Purchases (CSV)
       </Button>
       <Button variant="outline" size="sm" disabled={busy} onClick={() => download("sales")}>
-        <Download className="mr-1.5 size-3.5" />
+        <Download data-icon="inline-start" />
         Sales (CSV)
       </Button>
       <Button variant="outline" size="sm" disabled={busy} onClick={() => download("json")}>
-        <Download className="mr-1.5 size-3.5" />
+        <Download data-icon="inline-start" />
         Full detail (JSON)
       </Button>
     </div>
@@ -134,29 +135,28 @@ export function SendPanel({ html, month }: { html: string; month: string }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <iframe title="email preview" srcDoc={html} className="h-[600px] w-full" sandbox="" />
+          <iframe title="email preview" srcDoc={html} className="h-[45vh] sm:h-[600px] w-full" sandbox="" />
         </CardContent>
       </Card>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm send to CA</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This emails the {month} purchase and sales registers (CSV, one row
-            per bill) with a short note to the CA address on your account, and
-            records it in your audit log. No filing or approval happens
-            automatically.
-          </p>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+      <Drawer open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Confirm send to CA</DrawerTitle>
+            <DrawerDescription>
+              Emails the {month} purchase and sales registers (CSV) with a short
+              note to your CA and logs it in your audit trail. No filing happens
+              automatically.
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerFooter>
+            <Button onClick={doSend}>Yes, send it</Button>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={doSend}>Yes, send it</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

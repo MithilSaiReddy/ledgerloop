@@ -7,9 +7,10 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldGroup, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Select,
   SelectContent,
@@ -126,147 +127,148 @@ export function SettingsForm({ mode }: { mode: "onboarding" | "settings" }) {
           </p>
         </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="shop_name">Shop name</Label>
-        <Input
-          id="shop_name"
-          required
-          placeholder="e.g. Mithil Kirana Store"
-          value={shopName}
-          onChange={(e) => setShopNameInput(e.target.value)}
-        />
-      </div>
-
-      <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-        <Label htmlFor="gst_registered" className="cursor-pointer">
-          <span className="font-medium">{"I'm GST-registered"}</span>
-          <span className="block text-xs font-normal text-muted-foreground">
-            Turn on if you charge GST on your bills.
-          </span>
-        </Label>
-        <Switch
-          id="gst_registered"
-          checked={gstRegistered}
-          onCheckedChange={setGstRegistered}
-        />
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="gstin">GSTIN</Label>
-        <Input
-          id="gstin"
-          placeholder="e.g. 27ABCDE1234F1Z5"
-          value={gstin}
-          disabled={!gstRegistered}
-          onChange={(e) => setGstin(e.target.value.toUpperCase())}
-        />
-        <p className="text-xs text-muted-foreground">
-          {gstRegistered
-            ? "Used to tell intra-state from inter-state tax treatment."
-            : "Add your GSTIN if you're registered."}
-        </p>
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="state">Home state</Label>
-        <Select value={stateCode} onValueChange={setStateCode}>
-          <SelectTrigger id="state" className="w-full">
-            <SelectValue placeholder="Select your state" />
-          </SelectTrigger>
-          <SelectContent>
-            {GST_STATES.map((s) => (
-              <SelectItem key={s.code} value={s.code}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          Used to work out intra- vs inter-state GST on each bill.
-        </p>
-      </div>
-
-      <div className="grid gap-3">
-        <Label htmlFor="default_rate">Default GST rate</Label>
-        <p className="text-xs text-muted-foreground">
-          When a sale bill shows no tax, LedgerLoop adds CGST and SGST at this
-          one rate. Pick your business type or type your own — change it anytime.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {BUSINESS_TYPES.map((b) => (
-            <Button
-              key={b.key}
-              type="button"
-              variant={defaultRate === String(b.rate) ? "default" : "outline"}
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => setDefaultRate(String(b.rate))}
-            >
-              {b.label} · {b.rate}%
-            </Button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="shop_name">Shop name</FieldLabel>
           <Input
-            id="default_rate"
-            type="number"
-            min={0}
-            step={0.5}
-            inputMode="decimal"
-            placeholder="e.g. 5"
-            value={defaultRate}
-            disabled={!gstRegistered}
-            onChange={(e) => setDefaultRate(e.target.value)}
-            className="w-32"
+            id="shop_name"
+            required
+            placeholder="e.g. Mithil Kirana Store"
+            value={shopName}
+            onChange={(e) => setShopNameInput(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="gst_registered">
+            <span>{"I'm GST-registered"}</span>
+            <span className="block text-xs font-normal text-muted-foreground">
+              Turn on if you charge GST on your bills.
+            </span>
+          </FieldLabel>
+          <Switch
+            id="gst_registered"
+            checked={gstRegistered}
+            onCheckedChange={setGstRegistered}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="gstin">GSTIN</FieldLabel>
+          <Input
+            id="gstin"
+            placeholder="e.g. 27ABCDE1234F1Z5"
+            value={gstin}
+            disabled={!gstRegistered}
+            onChange={(e) => setGstin(e.target.value.toUpperCase())}
+          />
+          <FieldDescription>
             {gstRegistered
-              ? "Clothing up to ₹2,500/piece is 5%; above that it's 18%."
-              : "Turn on GST registration above to set a rate."}
-          </p>
-        </div>
-      </div>
+              ? "Used to tell intra-state from inter-state tax treatment."
+              : "Add your GSTIN if you're registered."}
+          </FieldDescription>
+        </Field>
 
-      <div className="grid gap-2">
-        <Label htmlFor="address">Business address</Label>
-        <Textarea
-          id="address"
-          placeholder="Shop no., street, city, PIN"
-          rows={2}
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-      </div>
+        <Field>
+          <FieldLabel htmlFor="state">Home state</FieldLabel>
+          <Select value={stateCode} onValueChange={setStateCode}>
+            <SelectTrigger id="state" className="w-full">
+              <SelectValue placeholder="Select your state" />
+            </SelectTrigger>
+            <SelectContent>
+              {GST_STATES.map((s) => (
+                <SelectItem key={s.code} value={s.code}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            Used to work out intra- vs inter-state GST on each bill.
+          </FieldDescription>
+        </Field>
 
-      <div className="grid gap-2">
-        <Label htmlFor="ca_email">CA email</Label>
-        <Input
-          id="ca_email"
-          type="email"
-          required
-          placeholder="your-ca@accountant.com"
-          value={caEmail}
-          onChange={(e) => setCaEmailInput(e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Month-end ledger summaries are emailed here.
-        </p>
-      </div>
+        <Field>
+          <FieldLabel htmlFor="default_rate">Default GST rate</FieldLabel>
+          <FieldDescription>
+            When a sale bill shows no tax, LedgerLoop adds CGST and SGST at this
+            one rate. Pick your business type or type your own — change it anytime.
+          </FieldDescription>
+          <ToggleGroup
+            type="single"
+            value={defaultRate}
+            onValueChange={(v) => v && setDefaultRate(v)}
+            disabled={!gstRegistered}
+            className="flex flex-wrap"
+          >
+            {BUSINESS_TYPES.map((b) => (
+              <ToggleGroupItem key={b.key} value={String(b.rate)}>
+                {b.label} · {b.rate}%
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <Input
+              id="default_rate"
+              type="number"
+              min={0}
+              step={0.5}
+              inputMode="decimal"
+              placeholder="e.g. 5"
+              value={defaultRate}
+              disabled={!gstRegistered}
+              onChange={(e) => setDefaultRate(e.target.value)}
+              className="w-full sm:w-32"
+            />
+            <p className="text-xs text-muted-foreground">
+              {gstRegistered
+                ? "Clothing up to ₹2,500/piece is 5%; above that it's 18%."
+                : "Turn on GST registration above to set a rate."}
+            </p>
+          </div>
+        </Field>
 
-      <div className="grid gap-2">
-        <Label htmlFor="telegram_chat_id">
-          Telegram chat ID <span className="text-muted-foreground">(optional)</span>
-        </Label>
-        <Input
-          id="telegram_chat_id"
-          placeholder="e.g. 123456789"
-          value={telegramChatId}
-          onChange={(e) => setTelegramChatId(e.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">
-          Used for invoice notifications when you send invoices to the bot.
-        </p>
-      </div>
+        <Field>
+          <FieldLabel htmlFor="address">Business address</FieldLabel>
+          <Textarea
+            id="address"
+            placeholder="Shop no., street, city, PIN"
+            rows={2}
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="ca_email">CA email</FieldLabel>
+          <Input
+            id="ca_email"
+            type="email"
+            required
+            placeholder="your-ca@accountant.com"
+            value={caEmail}
+            onChange={(e) => setCaEmailInput(e.target.value)}
+          />
+          <FieldDescription>
+            Month-end ledger summaries are emailed here.
+          </FieldDescription>
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="telegram_chat_id">
+            Telegram chat ID <span className="text-muted-foreground">(optional)</span>
+          </FieldLabel>
+          <Input
+            id="telegram_chat_id"
+            placeholder="e.g. 123456789"
+            value={telegramChatId}
+            onChange={(e) => setTelegramChatId(e.target.value)}
+          />
+          <FieldDescription>
+            Used for invoice notifications when you send invoices to the bot.
+          </FieldDescription>
+        </Field>
+      </FieldGroup>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 

@@ -11,16 +11,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { EmptyState } from "@/components/empty-state";
 import { useAuth } from "@/components/auth-provider";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { reasonLabel, resolveException, type ExceptionItem } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 const REASON_VARIANT: Record<string, "warning" | "info" | "neutral" | "destructive"> = {
   DUPLICATE: "warning",
@@ -37,11 +44,45 @@ const REASON_VARIANT: Record<string, "warning" | "info" | "neutral" | "destructi
 const EDITABLE_FIELDS = ["vendor", "gstin", "invoice_no", "date", "taxable_value",
   "cgst", "sgst", "igst", "total", "category"] as const;
 
+type Edits = Record<string, string>;
+
+function ResolveFields({
+  item,
+  edits,
+  onEdit,
+  error,
+}: {
+  item: ExceptionItem;
+  edits: Edits;
+  onEdit: (field: string, value: string) => void;
+  error: string | null;
+}) {
+  return (
+    <FieldGroup className="py-2">
+      <p className="text-sm text-muted-foreground">{item.detail}</p>
+      {EDITABLE_FIELDS.map((f) => (
+        <Field key={f}>
+          <FieldLabel htmlFor={`exc-${f}`}>{f}</FieldLabel>
+          <Input
+            id={`exc-${f}`}
+            placeholder={String(item.extracted?.[f] ?? "")}
+            value={edits[f] ?? ""}
+            aria-invalid={!!error}
+            onChange={(ev) => onEdit(f, ev.target.value)}
+          />
+        </Field>
+      ))}
+      {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+    </FieldGroup>
+  );
+}
+
 export function ExceptionsList({ items }: { items: ExceptionItem[] }) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const { session } = useAuth();
   const [resolving, setResolving] = useState<ExceptionItem | null>(null);
-  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [edits, setEdits] = useState<Edits>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -80,6 +121,33 @@ export function ExceptionsList({ items }: { items: ExceptionItem[] }) {
     }
   }
 
+  const title = resolving ? `Fix exception — ${reasonLabel(resolving.reason)}` : "";
+
+  const form = resolving && (
+    <>
+      <ResolveFields
+        item={resolving}
+        edits={edits}
+        onEdit={(field, value) =>
+          setEdits((prev) =>
+            value === ""
+              ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field))
+              : { ...prev, [field]: value }
+          )
+        }
+        error={error}
+      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <Button variant="outline" onClick={() => setResolving(null)}>
+          Cancel
+        </Button>
+        <Button onClick={() => act("resolved")} disabled={busy}>
+          {busy ? "Pushing…" : "Push corrected row to ledger"}
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <>
       <ul className="space-y-3">
@@ -109,10 +177,10 @@ export function ExceptionsList({ items }: { items: ExceptionItem[] }) {
                   </div>
                   {item.status === "open" && (
                     <div className="flex shrink-0 gap-2">
-                      <Button size="sm" onClick={() => openResolve(item)}>
+                      <Button onClick={() => openResolve(item)}>
                         Review &amp; fix
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => act("dismissed", item)} disabled={busy}>
+                      <Button variant="ghost" onClick={() => act("dismissed", item)} disabled={busy}>
                         Dismiss
                       </Button>
                     </div>
@@ -124,42 +192,27 @@ export function ExceptionsList({ items }: { items: ExceptionItem[] }) {
         ))}
       </ul>
 
-      <Dialog open={resolving !== null} onOpenChange={(open) => !open && setResolving(null)}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Fix exception — {resolving ? reasonLabel(resolving.reason) : ""}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">{resolving?.detail}</p>
-          <div className="space-y-2 py-2">
-            <Label>Correct any misread fields before pushing to ledger</Label>
-            {EDITABLE_FIELDS.map((f) => (
-              <div key={f} className="grid grid-cols-[140px_1fr] items-center gap-2">
-                <span className={cn("text-xs font-medium", "text-muted-foreground")}>{f}</span>
-                <Input
-                  placeholder={String(resolving?.extracted?.[f] ?? "")}
-                  value={edits[f] ?? ""}
-                  onChange={(ev) =>
-                    setEdits((prev) =>
-                      ev.target.value === ""
-                        ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== f))
-                        : { ...prev, [f]: ev.target.value }
-                    )
-                  }
-                />
-              </div>
-            ))}
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setResolving(null)}>
-              Cancel
-            </Button>
-            <Button onClick={() => act("resolved")} disabled={busy}>
-              {busy ? "Pushing…" : "Push corrected row to ledger"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isMobile ? (
+        <Drawer open={resolving !== null} onOpenChange={(open) => !open && setResolving(null)}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader>
+              <DrawerTitle>{title}</DrawerTitle>
+              <DrawerDescription>Correct any misread fields before pushing to ledger.</DrawerDescription>
+            </DrawerHeader>
+            <div className="overflow-y-auto px-4">{form}</div>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Dialog open={resolving !== null} onOpenChange={(open) => !open && setResolving(null)}>
+          <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription>Correct any misread fields before pushing to ledger.</DialogDescription>
+            </DialogHeader>
+            {form}
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

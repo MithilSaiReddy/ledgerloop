@@ -147,7 +147,7 @@ export function UploadZone({ compact = false }: { compact?: boolean }) {
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => router.push("/ledger")}>
             Go to ledger
-            <ArrowRight className="ml-1.5 size-4" />
+            <ArrowRight data-icon="inline-end" />
           </Button>
         </div>
       )}

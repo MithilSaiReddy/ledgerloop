@@ -151,4 +151,9 @@
   html {
     @apply font-sans;
   }
+  /* Respect notched-phone safe areas so drawer/cards sit above the home
+     indicator and top content clears the Dynamic Island. */
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

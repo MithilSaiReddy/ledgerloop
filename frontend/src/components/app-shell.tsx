@@ -68,7 +68,7 @@ function ThemeToggle() {
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           aria-label="Toggle theme"
         >
-          {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          {resolvedTheme === "dark" ? <Sun /> : <Moon />}
         </Button>
       </TooltipTrigger>
       <TooltipContent>Toggle theme</TooltipContent>
@@ -115,12 +115,12 @@ function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push("/settings")}>
-          <Settings className="mr-2 size-4" />
+          <Settings data-icon="inline-start" />
           Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={handleSignOut} variant="destructive">
-          <LogOut className="mr-2 size-4" />
+          <LogOut data-icon="inline-start" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -190,7 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     const active = pathname === item.href;
                     return (
                       <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <SidebarMenuButton asChild isActive={active} tooltip={item.label} size="lg">
                           <Link href={item.href}>
                             <item.icon />
                             <span>{item.label}</span>
@@ -210,6 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       asChild
                       isActive={pathname === "/settings"}
                       tooltip="Settings"
+                      size="lg"
                     >
                       <Link href="/settings">
                         <Settings />
@@ -224,6 +225,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sidebar>
         <SidebarInset>
           <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="size-9 md:hidden" aria-label="Open menu" />
             <span className="hidden text-base font-semibold tracking-tight sm:block">
               {title}
             </span>

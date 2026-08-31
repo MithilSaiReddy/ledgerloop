@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/empty-state";
 import { useAuth } from "@/components/auth-provider";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { getInvoice, getInvoiceFile, patchLedger, type LedgerEntry } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -125,16 +126,13 @@ function BillDialog({ entry, onOpenChange }: { entry: LedgerEntry; onOpenChange:
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load the actual uploaded document once the dialog opens.
   useEffect(() => {
     let cancelled = false;
     getInvoiceFile(entry.invoice_id, session?.access_token)
       .then((r) => {
         if (!cancelled) setFile(r);
       })
-      .catch(() => {
-        /* leave file null — text fallback still works */
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -167,7 +165,7 @@ function BillDialog({ entry, onOpenChange }: { entry: LedgerEntry; onOpenChange:
         )}
         {file?.kind === "pdf" && (
           <div className="my-2 overflow-hidden rounded-lg border">
-            <iframe src={file.url} title="Original invoice" className="h-[480px] w-full bg-white" />
+            <iframe src={file.url} title="Original invoice" className="h-[40vh] sm:h-[480px] w-full bg-white" />
           </div>
         )}
 
@@ -203,7 +201,7 @@ function BillDialog({ entry, onOpenChange }: { entry: LedgerEntry; onOpenChange:
             }
           }}
         >
-          <Eye className="size-4" /> {text ? "Hide" : "Show bill text"}
+          <Eye data-icon="inline-start" /> {text ? "Hide" : "Show bill text"}
         </Button>
       </DialogContent>
     </Dialog>
@@ -220,7 +218,6 @@ function displayValue(entry: LedgerEntry, col: Column): string {
   return String(raw);
 }
 
-/** Validate a draft before saving. Returns an error message, or null if ok. */
 function validateDraft(col: Column, draft: string): string | null {
   const value = draft.trim();
   if (col.key === "date") {
@@ -228,17 +225,105 @@ function validateDraft(col: Column, draft: string): string | null {
     const d = new Date(`${value}T00:00:00Z`);
     if (Number.isNaN(d.getTime())) return "Date is invalid";
   } else if (NUMERIC_KEYS.has(col.key)) {
-    if (value === "") return null; // blank numeric -> treated as cancel
+    if (value === "") return null;
     if (!/^-?\d*\.?\d+$/.test(value)) return "Must be a number";
   } else if (value === "") {
-    // NOT NULL string columns shouldn't be blanked out
     if (col.key === "vendor" || col.key === "invoice_no") return "Can't be left blank";
   }
   return null;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Mobile card for a single ledger entry                              */
+/* ------------------------------------------------------------------ */
+
+function MobileLedgerCard({
+  entry,
+  isOpen,
+  onToggle,
+  onViewBill,
+}: {
+  entry: LedgerEntry;
+  isOpen: boolean;
+  onToggle: () => void;
+  onViewBill: () => void;
+}) {
+  const taxable = Number(entry.taxable_value);
+  const total = Number(entry.total);
+
+  return (
+    <Card className="py-0">
+      <CardContent className="p-3">
+        {/* Top row — type badge, date, expand */}
+        <div className="flex items-center gap-2">
+          <TypeBadge type={entry.type ?? null} />
+          <span className="text-xs text-muted-foreground">{entry.date}</span>
+          <div className="ml-auto">
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              title={isOpen ? "Hide line items" : "Show line items"}
+              onClick={onToggle}
+            >
+              {isOpen ? <ChevronDown /> : <ChevronRight />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Vendor + invoice */}
+        <p className="mt-1.5 truncate text-sm font-medium">{entry.vendor}</p>
+        <p className="text-xs text-muted-foreground">#{entry.invoice_no}</p>
+
+        {/* Amounts */}
+        <div className="mt-2 flex items-baseline justify-between border-t pt-2">
+          <div>
+            <span className="text-[10px] uppercase text-muted-foreground">Taxable</span>
+            <p className="text-sm tabular-nums">{Number.isFinite(taxable) ? fmt(taxable) : "—"}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] uppercase text-muted-foreground">Total</span>
+            <p className="text-sm font-semibold tabular-nums">{Number.isFinite(total) ? fmt(total) : "—"}</p>
+          </div>
+        </div>
+
+        {/* Expanded items */}
+        {isOpen && (
+          <div className="mt-3 border-t pt-3">
+            {entry.tax_note && (
+              <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+                Tax note: {entry.tax_note}
+              </p>
+            )}
+            <ItemsTable entry={entry} />
+            {!((entry.items ?? []).length > 0) && (
+              <p className="py-2 text-xs text-muted-foreground">
+                No line items were extracted from this bill.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* View invoice — full-width touch target */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-9 w-full text-xs"
+          onClick={onViewBill}
+        >
+          <Eye data-icon="inline-start" /> View original invoice
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main export                                                        */
+/* ------------------------------------------------------------------ */
+
 export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
   const { session } = useAuth();
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<LedgerEntry[]>(entries);
   const [editing, setEditing] = useState<{ id: number; col: string } | null>(null);
   const [draft, setDraft] = useState("");
@@ -299,7 +384,6 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
 
     const current = displayValue(currentRow, col);
     if (value === "" || value === current) {
-      // Nothing meaningful to change — just close the editor.
       setEditing(null);
       return;
     }
@@ -311,7 +395,6 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
     setDraftError(null);
     try {
       await patchLedger(editing.id, col.key, value, session?.access_token);
-      // Optimistically reflect the change locally so focus/nav is preserved.
       const num = NUMERIC_KEYS.has(col.key) ? Number(value) : value;
       setRows((prev) =>
         prev.map((r) => {
@@ -341,6 +424,25 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
   const currentColIndex = editing ? COLUMNS.findIndex((c) => c.key === editing.col) : -1;
   const nextCol = currentColIndex >= 0 ? COLUMNS[currentColIndex + 1] ?? null : null;
 
+  /* -------- Mobile card layout -------- */
+  if (isMobile) {
+    return (
+      <div className="flex flex-col gap-3">
+        {rows.map((e) => (
+          <MobileLedgerCard
+            key={e.id}
+            entry={e}
+            isOpen={expanded.has(e.id)}
+            onToggle={() => toggleExpanded(e.id)}
+            onViewBill={() => setBillEntry(e)}
+          />
+        ))}
+        {billEntry && <BillDialog entry={billEntry} onOpenChange={(open) => !open && setBillEntry(null)} />}
+      </div>
+    );
+  }
+
+  /* -------- Desktop table layout -------- */
   return (
     <Card className="overflow-hidden py-0">
       <CardContent className="p-0">
@@ -371,12 +473,11 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
                       <TableCell className="pr-0">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="size-6"
+                          size="icon-lg"
                           title={isOpen ? "Hide line items" : "Show line items"}
                           onClick={() => toggleExpanded(e.id)}
                         >
-                          {isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                          {isOpen ? <ChevronDown /> : <ChevronRight />}
                         </Button>
                       </TableCell>
                       <TableCell className="pr-2">
@@ -413,7 +514,7 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
                               aria-invalid={!!draftError}
                               className={cn("h-8", numeric && "text-right tabular-nums")}
                             />
-                            {saving && <Loader2 className="size-3.5 animate-spin shrink-0" />}
+                            {saving && <Loader2 data-icon="inline-start" className="animate-spin" />}
                           </div>
                         ) : (
                           <span
@@ -437,12 +538,11 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
                   <TableCell className="hidden lg:table-cell">
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="size-6"
+                      size="icon-lg"
                       title="View original invoice"
                       onClick={() => setBillEntry(e)}
                     >
-                      <Eye className="size-4" />
+                      <Eye />
                     </Button>
                   </TableCell>
                     </TableRow>
@@ -460,16 +560,6 @@ export function LedgerTable({ entries }: { entries: LedgerEntry[] }) {
                               No line items were extracted from this bill.
                             </p>
                           )}
-                          <div className="lg:hidden">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mt-1 h-7 text-xs"
-                              onClick={() => setBillEntry(e)}
-                            >
-                              <Eye className="mr-1 size-3.5" /> View original invoice
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>
                     )}

@@ -121,7 +121,7 @@ export function DashboardView({ token }: { token: string }) {
                 action={
                   <Link href="/upload">
                     <Button variant="outline">
-                      <FileUp className="mr-1.5 size-4" />
+                      <FileUp data-icon="inline-start" />
                       Upload an invoice
                     </Button>
                   </Link>
